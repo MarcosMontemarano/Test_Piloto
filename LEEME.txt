@@ -1,0 +1,40 @@
+PILOTO PSICOACUSTICO
+
+EJECUTAR DIRECTAMENTE
+
+La interfaz usa Tkinter y solo la biblioteca estandar de Python. No necesita instalar paquetes para ejecutarse.
+
+En Windows, abre una terminal en esta carpeta y ejecuta:
+    py test.py
+
+Tambien puedes usar:
+    python test.py
+
+En macOS o Linux, ejecuta:
+    python3 test.py
+
+GENERAR EL EJECUTABLE PARA WINDOWS
+
+Haz doble clic en build_windows.bat, o ejecutalo desde una terminal abierta en esta carpeta. El script instala PyInstaller si hace falta y genera:
+    dist\TestPiloto.exe
+
+GENERAR EL EJECUTABLE PARA macOS O LINUX
+
+Desde una terminal abierta en esta carpeta, ejecuta:
+    chmod +x build_mac_linux.sh
+    ./build_mac_linux.sh
+
+El resultado se guarda dentro de dist/. PyInstaller genera el ejecutable para el sistema operativo donde se ejecuta el build; no genera un ejecutable universal para otros sistemas.
+
+SI WINDOWS O EL ANTIVIRUS BLOQUEAN EL EXE
+
+Los ejecutables empaquetados pueden generar avisos porque no tienen firma digital. Comprueba que el archivo provenga de una fuente confiable y consulta las politicas de tu organizacion antes de permitir su ejecucion. No desactives el antivirus si no puedes verificar el origen del archivo.
+
+Como alternativa, genera una version en carpeta con:
+    py -3 -m PyInstaller --onedir --windowed --name TestPiloto test.py
+
+En ese caso, copia y distribuye la carpeta completa dist\TestPiloto; no se debe separar el EXE de los archivos que PyInstaller coloca junto a el.
+
+CONFIGURACION
+
+El nombre del test, los textos, el orden de los escenarios y el nombre del fragmento musical se editan al principio de test.py. El fragmento es un placeholder: la interfaz no reproduce audio real.
