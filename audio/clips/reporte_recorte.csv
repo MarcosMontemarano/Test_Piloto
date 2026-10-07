@@ -1,0 +1,9 @@
+# Selección de tramos de ruido ambiental (tools/recortar_audios.py)
+# Niveles relativos a escala digital: dBFS ponderados A (0 dB = senoidal de 1 kHz a fondo de escala). NO son dBA SPL.
+# Ponderación A IEC 61672-1 (bilineal, fs = 44100 Hz); ponderación temporal Fast (tau = 0.125 s), lecturas cada 0.125 s; potencia promediada entre canales.
+# Ventanas de 30 s con paso de 1 s, excluyendo 1 s en cada borde del archivo. Umbrales: L_AFmax - L_Aeq <= 6 dB; L10 - L90 sin límite. Se elige la de menor L10 - L90 entre las que cumplen.
+# Niveles de selección medidos sobre el archivo original, antes del crossfade de 0.05 s y de la ganancia de exportación (ganancia_exportacion_dB), que lleva cada clip a L_Aeq = -27 dBFS. Las dos últimas columnas se miden sobre el OGG exportado.
+clip,archivo_original,inicio_s,fin_s,LAeq_dBFS,L10_dBFS,L90_dBFS,L10_menos_L90_dB,LAFmax_menos_LAeq_dB,cumple_umbrales,ventanas_candidatas,ventanas_que_cumplen,ganancia_exportacion_dB,LAeq_clip_exportado_dBFS,pico_clip_exportado_dBFS
+ruido_tren.ogg,freesound_community-train-ride-inside-the-car-17382.mp3,119,149,-31.56,-30.96,-32.15,1.20,1.52,si,181,127,4.56,-27.16,-2.93
+ruido_avion.ogg,ernyslts-aircraft-cabin-sound-129404.mp3,82,112,-25.85,-25.54,-26.19,0.66,0.92,si,89,89,-1.15,-27.16,-3.94
+ruido_autopista.ogg,edr-distant-highway-traffic-at-night-8854.mp3,21,51,-24.54,-23.61,-25.82,2.21,2.30,si,91,87,-2.46,-27.15,-10.71
