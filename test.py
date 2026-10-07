@@ -5,6 +5,12 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk
 
+os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+try:
+    import pygame
+except ImportError:
+    pygame = None
+
 
 # Configuración editable
 NOMBRE_TEST = (
@@ -13,7 +19,18 @@ NOMBRE_TEST = (
 )
 TITULO_VENTANA = "Piloto psicoacústico"
 DURACION_MINUTOS = 16
-FRAGMENTO_MUSICAL = "fragmento_musical.wav"
+
+# Clips en loop (generados con tools/recortar_audios.py)
+FRAGMENTO_MUSICAL = "audio/clips/musica_pop.ogg"
+RUIDO_TAREA_A = "audio/clips/ruido_blanco.ogg"  # placeholder del MSSN
+RUIDO_AMBIENTE = "audio/clips/ruido_tren.ogg"
+VOLUMEN_RUIDO = 1.0
+# Nivel del slider (5-100) con el que suenan los anclajes.
+NIVEL_ANCLAJE = 50
+# Cada paso del slider cambia la música en PASO_DB dB (nivel 100 = 0 dB).
+# pygame.mixer cuantiza el volumen en 128 valores, por eso el rango total
+# (19 pasos x 1.5 dB = 28.5 dB) no conviene que sea mucho mayor.
+PASO_DB = 1.5
 
 ESCENARIOS = [
     {"ambiente": "Sin ruido", "anc": "ON"},
@@ -53,7 +70,7 @@ TEXTOS = {
     "esfuerzo": "Esfuerzo de escucha: compará con el anclaje",
     "comparado": "Comparado con la referencia {ambiente}",
     "anc": "ANC {estado}",
-    "fragmento_auto": "Fragmento musical · reproducción automática simulada",
+    "fragmento_auto": "Fragmento musical · reproducción automática en loop",
     "reproducido": "Reproducido",
     "siguiente": "Siguiente",
     "atras": "Atrás",
@@ -115,6 +132,58 @@ def enable_windows_dpi_awareness():
         pass
 
 
+def nivel_a_volumen(nivel):
+    """Convierte el nivel del slider (5-100) a ganancia lineal, en pasos de PASO_DB dB."""
+    return 10 ** ((nivel - 100) / 5 * PASO_DB / 20)
+
+
+class AudioPlayer:
+    """Reproduce clips en loop con pygame.mixer. Sin audio disponible, la app sigue funcionando."""
+
+    MUSICA = 0
+    RUIDO = 1
+
+    def __init__(self):
+        self.sounds = {}
+        self.ready = False
+        if pygame is None:
+            log("pygame no está instalado: audio desactivado.")
+            return
+        try:
+            pygame.mixer.pre_init(44100, -16, 2, 1024)
+            pygame.mixer.init()
+            pygame.mixer.set_reserved(2)
+            for path in (FRAGMENTO_MUSICAL, RUIDO_TAREA_A, RUIDO_AMBIENTE):
+                self.sounds[path] = pygame.mixer.Sound(resource_path(path))
+            self.ready = True
+        except (pygame.error, FileNotFoundError) as error:
+            log("No se pudo iniciar el audio: {}".format(error))
+
+    def loop(self, channel, path, volume=1.0):
+        if not self.ready:
+            return
+        mixer_channel = pygame.mixer.Channel(channel)
+        mixer_channel.play(self.sounds[path], loops=-1)
+        mixer_channel.set_volume(volume)
+
+    def set_volume(self, channel, volume):
+        if self.ready:
+            pygame.mixer.Channel(channel).set_volume(volume)
+
+    def is_playing(self, channel):
+        return self.ready and pygame.mixer.Channel(channel).get_busy()
+
+    def stop(self):
+        if self.ready:
+            pygame.mixer.stop()
+
+    def close(self):
+        if self.ready:
+            pygame.mixer.stop()
+            pygame.mixer.quit()
+            self.ready = False
+
+
 class PsychoacousticPilot(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -125,6 +194,8 @@ class PsychoacousticPilot(tk.Tk):
 
         self.title(TITULO_VENTANA)
         self.configure(bg=FONDO)
+        self.audio = AudioPlayer()
+        self.protocol("WM_DELETE_WINDOW", self.close)
 
         self.sentence_scores = []
         self.selected_level = tk.IntVar(value=50)
@@ -270,16 +341,27 @@ class PsychoacousticPilot(tk.Tk):
                  font=self._font(size), wraplength=int(860 * self.scale_factor),
                  justify="center").pack(pady=max(3, int(5 * self.scale_factor)))
 
-    def _audio_button(self, parent, label, message, large=False):
+    def _audio_button(self, parent, label, action, large=False, played=False):
         style = "Audio.TButton" if large else "TButton"
         button = ttk.Button(parent, text=label, style=style)
 
-        def play_placeholder():
-            log(message)
+        def play():
+            action()
             button.configure(text=TEXTOS["reproducido"], style="Played.TButton")
 
-        button.configure(command=play_placeholder)
+        button.configure(command=play)
+        if played:
+            button.configure(text=TEXTOS["reproducido"], style="Played.TButton")
         return button
+
+    def _play_music(self, level, with_noise):
+        self.audio.stop()
+        self.audio.loop(AudioPlayer.MUSICA, FRAGMENTO_MUSICAL, nivel_a_volumen(level))
+        if with_noise:
+            self.audio.loop(AudioPlayer.RUIDO, RUIDO_AMBIENTE, VOLUMEN_RUIDO)
+
+    def _play_task_noise(self):
+        self.audio.loop(AudioPlayer.RUIDO, RUIDO_TAREA_A, VOLUMEN_RUIDO)
 
     def _can_advance(self):
         step = self.steps[self.current_index]
@@ -310,7 +392,7 @@ class PsychoacousticPilot(tk.Tk):
             return
         if last:
             ttk.Button(self.footer, text=TEXTOS["finalizar"], style="Primary.TButton",
-                       command=self.destroy).pack(side="right")
+                       command=self.close).pack(side="right")
             return
 
         ttk.Button(self.footer, text=TEXTOS["siguiente"], style="Primary.TButton",
@@ -319,12 +401,12 @@ class PsychoacousticPilot(tk.Tk):
 
     def show_step(self):
         step = self.steps[self.current_index]
-        if step.startswith("scenario_") and step != self.rendered_step:
-            scenario_index = int(step.rsplit("_", 1)[1])
-            fragment_path = resource_path(FRAGMENTO_MUSICAL)
-            log("Reproducción automática simulada: {} ({})".format(
-                os.path.basename(fragment_path), ESCENARIOS[scenario_index]["ambiente"]
-            ))
+        if step != self.rendered_step:
+            self.audio.stop()
+            if step.startswith("scenario_"):
+                scenario_index = int(step.rsplit("_", 1)[1])
+                self._play_music(self.scenario_levels[scenario_index],
+                                 ESCENARIOS[scenario_index]["ambiente"] == "Con ruido")
         self.rendered_step = step
 
         self._refresh_stepper()
@@ -349,10 +431,10 @@ class PsychoacousticPilot(tk.Tk):
         elif step == "task_a":
             self._heading(body, TEXTOS["tarea_a_titulo"], 24)
             self._paragraph(body, TEXTOS["tarea_a_instrucciones"], 16)
-            if not self.sentence_scores:
-                self._audio_button(body, TEXTOS["ruido_fondo"],
-                                   "Reproducción simulada: ruido de fondo.", large=True).pack(
-                                       pady=(12, 4))
+            noise_playing = self.audio.is_playing(AudioPlayer.RUIDO)
+            if not self.sentence_scores or (len(self.sentence_scores) < 12 and not noise_playing):
+                self._audio_button(body, TEXTOS["ruido_fondo"], self._play_task_noise,
+                                   large=True, played=noise_playing).pack(pady=(12, 4))
                 self._paragraph(body, TEXTOS["ruido_persistente"], 12)
 
             sentence_number = min(len(self.sentence_scores) + 1, 12)
@@ -361,8 +443,8 @@ class PsychoacousticPilot(tk.Tk):
                      font=self._font(19, "bold")).pack(pady=(8, 6))
             if len(self.sentence_scores) < 12:
                 self._audio_button(body, TEXTOS["reproducir_oracion"],
-                                   "Reproducción simulada: oración {}.".format(sentence_number)).pack(
-                                       pady=(0, 8))
+                                   lambda: log("Reproducción simulada: oración {}.".format(
+                                       sentence_number))).pack(pady=(0, 8))
                 panel = tk.Frame(body, bg="#edf3f1", highlightbackground=BORDES,
                                  highlightthickness=1, padx=18, pady=9)
                 panel.pack(fill="x", padx=40, pady=(2, 4))
@@ -391,9 +473,8 @@ class PsychoacousticPilot(tk.Tk):
                 condicion_ruido=noise_condition
             ))
             self._audio_button(body, TEXTOS["reproducir_anclaje"],
-                               "Reproducción simulada del anclaje: {}.".format(
-                                   os.path.basename(resource_path(FRAGMENTO_MUSICAL))
-                               ), large=True).pack(pady=18)
+                               lambda: self._play_music(NIVEL_ANCLAJE, has_background_noise),
+                               large=True).pack(pady=18)
             badges = tk.Frame(body, bg=SUPERFICIE)
             badges.pack(pady=7)
             tk.Label(badges, text="ANC OFF", bg=GRIS, fg="#505957",
@@ -507,6 +588,7 @@ class PsychoacousticPilot(tk.Tk):
     def _update_level(self, scenario_index, value):
         level = int(float(value))
         self.scenario_levels[scenario_index] = level
+        self.audio.set_volume(AudioPlayer.MUSICA, nivel_a_volumen(level))
         self.level_label.configure(text=TEXTOS["nivel_seleccionado"].format(nivel=level))
         self._draw_level_triangle(level)
 
@@ -524,6 +606,8 @@ class PsychoacousticPilot(tk.Tk):
     def record_sentence_score(self, score):
         if len(self.sentence_scores) < 12:
             self.sentence_scores.append(score)
+            if len(self.sentence_scores) == 12:
+                self.audio.stop()
             self.show_step()
 
     def confirm_level(self, scenario_index):
@@ -544,6 +628,10 @@ class PsychoacousticPilot(tk.Tk):
         if self.current_index > 0:
             self.current_index -= 1
             self.show_step()
+
+    def close(self):
+        self.audio.close()
+        self.destroy()
 
 
 if __name__ == "__main__":
