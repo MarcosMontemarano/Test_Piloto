@@ -1,40 +1,69 @@
 PILOTO PSICOACUSTICO
+Impacto de auriculares ANC en la percepcion musical y comprension de letras en espanol rioplatense
 
-EJECUTAR DIRECTAMENTE
+ABRIR LA APLICACION EN macOS
 
-La interfaz usa Tkinter y solo la biblioteca estandar de Python. No necesita instalar paquetes para ejecutarse.
+1. Descomprimi TestPiloto-macos.zip (doble clic). Aparece TestPiloto.app.
+2. Movela a Aplicaciones (opcional) o dejala en cualquier carpeta.
+3. La app no esta firmada por Apple, por eso la primera vez hay que abrirla asi:
+   - Clic derecho (o Control + clic) sobre TestPiloto.app -> Abrir -> en el aviso, Abrir.
+   - En macOS 15 (Sequoia) o posterior ese boton puede no aparecer. En ese caso:
+     intenta abrirla con doble clic, cerra el aviso, anda a
+     Ajustes del Sistema -> Privacidad y seguridad, baja hasta el mensaje sobre
+     "TestPiloto" y toca "Abrir igualmente". Confirma con tu contrasena.
+4. Desde la segunda vez se abre con doble clic normal.
 
-En Windows, abre una terminal en esta carpeta y ejecuta:
-    py test.py
+Alternativa desde la Terminal (quita la marca de cuarentena de la descarga):
+    xattr -dr com.apple.quarantine /ruta/a/TestPiloto.app
 
-Tambien puedes usar:
-    python test.py
+El build de macOS se compila en GitHub Actions para Mac con Apple Silicon (M1 o posterior).
 
-En macOS o Linux, ejecuta:
-    python3 test.py
+ABRIR LA APLICACION EN WINDOWS
 
-GENERAR EL EJECUTABLE PARA WINDOWS
+1. Descomprimi TestPiloto-windows.zip y ejecuta TestPiloto.exe con doble clic.
+2. Si aparece "Windows protegio su PC" (SmartScreen), toca "Mas informacion" ->
+   "Ejecutar de todas formas". Aparece porque el ejecutable no tiene firma digital.
+3. El .exe tarda unos segundos en abrir: primero se descomprime en una carpeta temporal.
 
-Haz doble clic en build_windows.bat, o ejecutalo desde una terminal abierta en esta carpeta. El script instala PyInstaller si hace falta y genera:
-    dist\TestPiloto.exe
+Si el antivirus lo bloquea, comproba que el archivo provenga de una fuente confiable
+(el Release del repositorio) antes de permitir su ejecucion. No desactives el antivirus.
 
-GENERAR EL EJECUTABLE PARA macOS O LINUX
+AUDIO
 
-Desde una terminal abierta en esta carpeta, ejecuta:
+- Tarea A: "Reproducir ruido de fondo" reproduce en loop un ruido blanco (placeholder del
+  MSSN) hasta completar las 12 oraciones. Las oraciones siguen simuladas.
+- Anclajes y escenarios: fragmento musical (pop) en loop; en las condiciones "con ruido"
+  suena en paralelo un ruido de interior de tren. En los escenarios la musica arranca sola.
+- El slider ajusta solo el volumen de la musica, en 20 pasos (5 a 100) de 1.5 dB cada uno.
+- Al cambiar de pantalla o cerrar la app se detiene todo el audio.
+
+Los clips estan en audio/clips/ y se generan con tools/recortar_audios.py a partir de los
+archivos originales de audio/.
+
+EJECUTAR DESDE EL CODIGO
+
+Requiere Python 3 y pygame-ce:
+    pip install -r requirements.txt
+
+Windows:            py test.py
+macOS o Linux:      python3 test.py
+
+GENERAR LOS EJECUTABLES
+
+Automatico (recomendado): cada push a main compila en GitHub Actions para Windows y macOS
+(pestana Actions -> Artifacts). Al pushear un tag v* (por ejemplo v0.2.0) se publica un
+Release con TestPiloto-windows.zip y TestPiloto-macos.zip.
+
+Manual en Windows: doble clic en build_windows.bat. Genera dist\TestPiloto.exe.
+
+Manual en macOS o Linux:
     chmod +x build_mac_linux.sh
     ./build_mac_linux.sh
+En macOS genera dist/TestPiloto.app; en Linux, dist/TestPiloto.
 
-El resultado se guarda dentro de dist/. PyInstaller genera el ejecutable para el sistema operativo donde se ejecuta el build; no genera un ejecutable universal para otros sistemas.
-
-SI WINDOWS O EL ANTIVIRUS BLOQUEAN EL EXE
-
-Los ejecutables empaquetados pueden generar avisos porque no tienen firma digital. Comprueba que el archivo provenga de una fuente confiable y consulta las politicas de tu organizacion antes de permitir su ejecucion. No desactives el antivirus si no puedes verificar el origen del archivo.
-
-Como alternativa, genera una version en carpeta con:
-    py -3 -m PyInstaller --onedir --windowed --name TestPiloto test.py
-
-En ese caso, copia y distribuye la carpeta completa dist\TestPiloto; no se debe separar el EXE de los archivos que PyInstaller coloca junto a el.
+PyInstaller genera el ejecutable solo para el sistema operativo donde se ejecuta el build.
 
 CONFIGURACION
 
-El nombre del test, los textos, el orden de los escenarios y el nombre del fragmento musical se editan al principio de test.py. El fragmento es un placeholder: la interfaz no reproduce audio real.
+El nombre del test, los textos, el orden de los escenarios, los clips de audio, el nivel de
+los anclajes y el tamano del paso del slider se editan al principio de test.py.
