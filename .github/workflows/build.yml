@@ -1,0 +1,74 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: TestPiloto-windows
+          - os: macos-latest
+            artifact: TestPiloto-macos
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: python -m pip install -r requirements.txt pyinstaller
+
+      - name: Compilar (Windows)
+        if: runner.os == 'Windows'
+        run: >-
+          pyinstaller --noconfirm --onefile --windowed --name TestPiloto
+          --add-data "audio/clips;audio/clips" test.py
+
+      - name: Compilar (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          pyinstaller --noconfirm --onedir --windowed --name TestPiloto \
+            --add-data "audio/clips:audio/clips" test.py
+          # ditto conserva los symlinks y permisos del bundle .app
+          mkdir paquete
+          ditto dist/TestPiloto.app paquete/TestPiloto.app
+          cp LEEME.txt paquete/
+          ditto -c -k --sequesterRsrc paquete dist/TestPiloto-macos.zip
+
+      - name: Preparar paquete (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/TestPiloto.exe, LEEME.txt -DestinationPath dist/TestPiloto-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.zip
+          generate_release_notes: true
