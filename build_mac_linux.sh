@@ -8,11 +8,18 @@ if ! command -v "$PYTHON" >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! "$PYTHON" -m PyInstaller --version >/dev/null 2>&1; then
-    echo "Instalando PyInstaller para generar la aplicacion..."
-    "$PYTHON" -m pip install pyinstaller
+echo "Instalando dependencias (pygame-ce y PyInstaller)..."
+"$PYTHON" -m pip install -r requirements.txt pyinstaller
+
+# En macOS se genera dist/TestPiloto.app (--onedir: PyInstaller desaconseja
+# --onefile para bundles .app); en Linux, un único ejecutable.
+if [ "$(uname)" = "Darwin" ]; then
+    MODO="--onedir"
+else
+    MODO="--onefile"
 fi
 
-"$PYTHON" -m PyInstaller --onefile --windowed --name TestPiloto test.py
+"$PYTHON" -m PyInstaller --noconfirm "$MODO" --windowed --name TestPiloto \
+    --add-data "audio/clips:audio/clips" test.py
 
 echo "Build completado. Revisa la carpeta dist/ para encontrar el resultado."
