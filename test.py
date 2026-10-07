@@ -7,7 +7,10 @@ from tkinter import ttk
 
 
 # Configuración editable
-NOMBRE_TEST = "[NOMBRE DEL TEST — completar]"
+NOMBRE_TEST = (
+    "Impacto de auriculares ANC en la percepción musical y comprensión de letras "
+    "en español rioplatense"
+)
 TITULO_VENTANA = "Piloto psicoacústico"
 DURACION_MINUTOS = 16
 FRAGMENTO_MUSICAL = "fragmento_musical.wav"
