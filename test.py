@@ -434,8 +434,8 @@ class PsychoacousticPilot(tk.Tk):
 
             level_area = tk.Frame(body, bg=SUPERFICIE)
             level_area.pack(fill="x", padx=8)
-            tk.Scale(level_area, from_=0, to=100, orient="horizontal", resolution=5,
-                     showvalue=True, tickinterval=20, variable=self.selected_level,
+            tk.Scale(level_area, from_=5, to=100, orient="horizontal", resolution=5,
+                     showvalue=True, tickinterval=95, variable=self.selected_level,
                      command=lambda value: self._update_level(scenario_index, value),
                      length=int(600 * self.scale_factor), sliderlength=24,
                      troughcolor=ACENTO_CLARO, activebackground=ACENTO,
