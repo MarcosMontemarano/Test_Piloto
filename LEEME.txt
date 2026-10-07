@@ -38,7 +38,14 @@ AUDIO
 - Al cambiar de pantalla o cerrar la app se detiene todo el audio.
 
 Los clips estan en audio/clips/ y se generan con tools/recortar_audios.py a partir de los
-archivos originales de audio/.
+archivos originales de audio/. Los MP3 originales no se versionan en git (audio/*.mp3 esta
+en .gitignore): para regenerar los clips hay que copiarlos a audio/ a mano.
+
+Para los ruidos ambientales (tren, avion y autopista) el script elige objetivamente el
+tramo de 30 s mas estable (menor L10 - L90, sin eventos con L_AFmax - L_Aeq > 6 dB) y los
+lleva a un mismo L_Aeq digital. El resultado queda en audio/clips/reporte_recorte.csv y en
+las figuras audio/clips/nivel_*.png. Los niveles son dBFS ponderados A, no dBA SPL: la
+calibracion de nivel se hace midiendo en el lugar del test.
 
 EJECUTAR DESDE EL CODIGO
 
