@@ -2,4 +2,6 @@ build/
 dist/
 *.spec
 __pycache__/
-audio/*.mp3
+# Audio fuera de git, salvo los clips que empaqueta la app (test.py los necesita y CI compila desde el repo)
+audio/*
+!audio/clips/
