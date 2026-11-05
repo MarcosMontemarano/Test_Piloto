@@ -77,8 +77,16 @@ def potencia_bandas(f, psd):
 
 
 def tercios_octava(x, fs):
-    """Nivel (dBFS) de cada tercio de octava de 63 Hz a 16 kHz."""
-    f, psd = psd_welch(x, fs)
+    """Nivel (dBFS) de cada tercio de octava de 63 Hz a 16 kHz.
+
+    Con una señal multicanal (muestras x canales) se promedia la potencia de los canales.
+    """
+    x = np.asarray(x, dtype=np.float64)
+    if x.ndim == 2:
+        f, psd = psd_welch(x.T, fs)
+        psd = psd.mean(axis=0)
+    else:
+        f, psd = psd_welch(x, fs)
     return 10 * np.log10(potencia_bandas(f, psd) + EPS)
 
 
@@ -106,22 +114,30 @@ def disenar_fir(ganancias_db, fs, coeficientes, pendiente_fuera_db_oct=0.0):
 
 
 def filtrar(x, h):
-    """Filtra con un FIR de fase lineal y compensa su retardo: la salida queda alineada con x."""
+    """Filtra con un FIR de fase lineal y compensa su retardo: la salida queda alineada con x.
+
+    Una señal multicanal (muestras x canales) se filtra canal por canal con el mismo FIR.
+    """
     retardo = (len(h) - 1) // 2
+    if np.ndim(x) == 2:
+        return oaconvolve(x, h[:, None], axes=0)[retardo:retardo + len(x)]
     return oaconvolve(x, h)[retardo:retardo + len(x)]
 
 
 def ajustar_fir(x, fs, objetivo_rel, ganancias_db, coeficientes, iteraciones, tolerancia_db,
-                pendiente_fuera_db_oct=0.0):
+                pendiente_fuera_db_oct=0.0, recorte=slice(None)):
     """Diseña, filtra y corrige la ganancia por banda hasta que el espectro de la salida
     (relativo a su suma de bandas) quede a tolerancia_db del objetivo o se agoten las iteraciones.
 
-    Devuelve (salida, filtro, desvío por banda en dB, iteraciones usadas).
+    recorte es el tramo de la salida filtrada que se conserva y se mide (para descartar el
+    relleno que se agrega en los bordes).
+
+    Devuelve (salida recortada, filtro, desvío por banda en dB, iteraciones usadas).
     """
     ganancias_db = np.array(ganancias_db, dtype=np.float64)
     for iteracion in range(1, iteraciones + 1):
         h = disenar_fir(ganancias_db, fs, coeficientes, pendiente_fuera_db_oct)
-        y = filtrar(x, h)
+        y = filtrar(x, h)[recorte]
         desvio = relativo_a_bandas(tercios_octava(y, fs)) - objetivo_rel
         if np.max(np.abs(desvio)) <= tolerancia_db:
             break

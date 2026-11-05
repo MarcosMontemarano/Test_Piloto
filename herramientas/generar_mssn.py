@@ -106,8 +106,8 @@ def main():
 
     ganancias = ltass_rel - 10 * np.log10(ANCHOS_BANDA)
     y, h, _, iteraciones = ajustar_fir(ruido, fs, ltass_rel, ganancias, args.coeficientes,
-                                       args.iteraciones, args.tolerancia, args.pendiente_fuera)
-    y = y[margen // 2:margen // 2 + n]
+                                       args.iteraciones, args.tolerancia, args.pendiente_fuera,
+                                       recorte=slice(margen // 2, margen // 2 + n))
     print("FIR: {} coeficientes ({:.3f} s, resolución {:.2f} Hz), {} iteraciones de ajuste"
           .format(len(h), len(h) / fs, fs / len(h), iteraciones))
 
