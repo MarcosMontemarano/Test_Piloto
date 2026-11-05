@@ -25,7 +25,7 @@ import numpy as np
 import soundfile as sf
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from comun import niveles_tramas  # noqa: E402
+from comun import con_fundidos, niveles_tramas  # noqa: E402
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CARPETA = os.path.join(RAIZ, "audio", "quicksin")
@@ -49,15 +49,6 @@ def tramos_activos(x, fs, umbral_db, pausa_min_s):
             tramos.append([i, f])
     n = int(round(TRAMA_S * fs))
     return [(i * n, f * n) for i, f in tramos]
-
-
-def con_fundidos(x, fs, fundido_s):
-    n = int(round(fundido_s * fs))
-    rampa = 0.5 - 0.5 * np.cos(np.pi * np.arange(n) / n)
-    y = x.copy()
-    y[:n] *= rampa
-    y[-n:] *= rampa[::-1]
-    return y
 
 
 def crear_plantilla(ruta):

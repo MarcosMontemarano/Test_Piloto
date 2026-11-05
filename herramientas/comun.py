@@ -7,7 +7,7 @@ sobre las muestras float en [-1, 1) que devuelve soundfile.
 import csv
 
 import numpy as np
-from scipy.signal import welch
+from scipy.signal import firwin2, oaconvolve, welch
 
 EPS = 1e-12
 
@@ -47,6 +47,16 @@ def quitar_pausas(x, fs, umbral_db=30.0, trama_s=0.020):
     return tramas[activa].ravel(), 100.0 * np.mean(activa)
 
 
+def con_fundidos(x, fs, fundido_s):
+    """Copia de x con fundidos de entrada y salida de medio coseno de fundido_s segundos."""
+    n = int(round(fundido_s * fs))
+    rampa = 0.5 - 0.5 * np.cos(np.pi * np.arange(n) / n)
+    y = np.array(x, dtype=np.float64)
+    y[:n] *= rampa
+    y[-n:] *= rampa[::-1]
+    return y
+
+
 def psd_welch(x, fs, resolucion_hz=RESOLUCION_MAX_HZ):
     """PSD de Welch (Hann, 50 % de solapamiento) con resolución <= resolucion_hz."""
     nperseg = int(2 ** np.ceil(np.log2(fs / resolucion_hz)))
@@ -70,6 +80,59 @@ def tercios_octava(x, fs):
     """Nivel (dBFS) de cada tercio de octava de 63 Hz a 16 kHz."""
     f, psd = psd_welch(x, fs)
     return 10 * np.log10(potencia_bandas(f, psd) + EPS)
+
+
+def disenar_fir(ganancias_db, fs, coeficientes, pendiente_fuera_db_oct=0.0):
+    """FIR de fase lineal (firwin2) con la ganancia dada en cada frecuencia central.
+
+    La ganancia se interpola en dB sobre frecuencia logarítmica. Fuera de 63 Hz-16 kHz (desde
+    los bordes de las bandas extremas) se mantiene el valor del borde, o cae con
+    pendiente_fuera_db_oct dB por octava si es mayor que cero.
+    """
+    if coeficientes % 2 == 0:
+        raise ValueError("La cantidad de coeficientes tiene que ser impar (FIR tipo I).")
+    nyquist = fs / 2
+    borde_bajo, borde_alto = BANDAS_EXACTAS[0] * 10 ** (-1 / 20), BANDAS_EXACTAS[-1] * 10 ** (1 / 20)
+    f = np.geomspace(1.0, nyquist, 4000)
+    g = np.interp(np.log10(f), np.log10(np.concatenate(([borde_bajo], BANDAS_EXACTAS, [borde_alto]))),
+                  np.concatenate(([ganancias_db[0]], ganancias_db, [ganancias_db[-1]])))
+    if pendiente_fuera_db_oct > 0:
+        g -= pendiente_fuera_db_oct * np.clip(np.log2(borde_bajo / f), 0, None)
+        g -= pendiente_fuera_db_oct * np.clip(np.log2(f / borde_alto), 0, None)
+    f = np.concatenate(([0.0], f))
+    g = np.concatenate(([g[0]], g))
+    nfreqs = 1 + 2 ** (int(np.ceil(np.log2(coeficientes))) + 1)
+    return firwin2(coeficientes, f, 10 ** (g / 20), nfreqs=nfreqs, fs=fs)
+
+
+def filtrar(x, h):
+    """Filtra con un FIR de fase lineal y compensa su retardo: la salida queda alineada con x."""
+    retardo = (len(h) - 1) // 2
+    return oaconvolve(x, h)[retardo:retardo + len(x)]
+
+
+def ajustar_fir(x, fs, objetivo_rel, ganancias_db, coeficientes, iteraciones, tolerancia_db,
+                pendiente_fuera_db_oct=0.0):
+    """Diseña, filtra y corrige la ganancia por banda hasta que el espectro de la salida
+    (relativo a su suma de bandas) quede a tolerancia_db del objetivo o se agoten las iteraciones.
+
+    Devuelve (salida, filtro, desvío por banda en dB, iteraciones usadas).
+    """
+    ganancias_db = np.array(ganancias_db, dtype=np.float64)
+    for iteracion in range(1, iteraciones + 1):
+        h = disenar_fir(ganancias_db, fs, coeficientes, pendiente_fuera_db_oct)
+        y = filtrar(x, h)
+        desvio = relativo_a_bandas(tercios_octava(y, fs)) - objetivo_rel
+        if np.max(np.abs(desvio)) <= tolerancia_db:
+            break
+        ganancias_db -= desvio
+    return y, h, desvio, iteracion
+
+
+def relativo_a_bandas(niveles):
+    """Niveles por banda relativos a su suma energética (la suma de las bandas queda en 0 dB)."""
+    niveles = np.asarray(niveles, dtype=np.float64)
+    return niveles - 10 * np.log10(np.sum(10 ** (niveles / 10)))
 
 
 def cargar_ltass(ruta):
