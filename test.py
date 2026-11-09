@@ -163,6 +163,10 @@ def paso_a_db(paso):
     return (paso - PASOS_SLIDER) * PASO_DB
 
 
+class ArchivoFaltante(Exception):
+    """Falta un archivo de audio durante la sesión: se detiene, nunca se reemplaza por otra señal."""
+
+
 def formato_puntaje(valor):
     return "{:g}".format(valor).replace(".", ",")
 
@@ -199,6 +203,7 @@ class PsychoacousticPilot(tk.Tk):
         self.fatiga = tk.StringVar(value="")
         self.comodidad = tk.StringVar(value="")
         self.sesion_terminada = False
+        self.detenida = False
 
         self._configure_styles()
         self._build_shell()
@@ -622,6 +627,27 @@ class PsychoacousticPilot(tk.Tk):
         self._fila("evento", campo="inicio", valor=SECCIONES[seccion])
         self.seccion_actual = seccion
 
+    def _reproducir(self, zona, ruta, ganancia_db, **opciones):
+        """Reproduce un archivo por una salida. Si el archivo no está, detiene la sesión."""
+        if not os.path.isfile(ruta):
+            raise ArchivoFaltante(ruta)
+        self.salidas[zona].reproducir(ruta, ganancia_db, **opciones)
+
+    def _detener_por_falta(self, ruta):
+        for salida in self.salidas.values():
+            salida.detener()
+        relativa = os.path.relpath(ruta, self.base)
+        self._fila("evento", campo="archivo_faltante", valor=relativa)
+        self.detenida = True
+        for frame in (self.content, self.footer):
+            for child in frame.winfo_children():
+                child.destroy()
+        body = self._card()
+        self._heading(body, "Falta un archivo de audio", 24)
+        tk.Label(body, text=relativa, bg=SUPERFICIE, fg=ALERTA, font=self._font(14, "bold")).pack(pady=8)
+        self._paragraph(body, "La sesión se detuvo. Copiá el archivo en la carpeta audio/ y volvé a empezar.", 14)
+        ttk.Button(self.footer, text="Cerrar", style="Primary.TButton", command=self.close).pack(side="right")
+
     def _poner_ambiente(self, bloque):
         """Ruido ambiente continuo de todo el bloque (silencio: nada) por los monitores."""
         if bloque == self.ambiente_actual:
@@ -629,39 +655,29 @@ class PsychoacousticPilot(tk.Tk):
         ruido = self.salidas["ruido"]
         ruido.detener("ambiente")
         if bloque in GANANCIA_AMBIENTE:
-            ruido.reproducir(self.rutas[bloque], self.cfg[GANANCIA_AMBIENTE[bloque]], loop=True, clave="ambiente")
+            ruta = self.rutas[bloque]
+            self._reproducir("ruido", ruta, self.cfg[GANANCIA_AMBIENTE[bloque]], loop=True, clave="ambiente")
+            d = ruido.dispositivo
+            self._fila("bloque", bloque=bloque, campo="ruido_ambiente",
+                       valor="{} -> {} [{}] {} Hz, ganancia {:g} dB".format(
+                           os.path.relpath(ruta, self.base), d["nombre"], d["api"], d["fs"],
+                           self.cfg[GANANCIA_AMBIENTE[bloque]]))
+        elif bloque is not None:
+            self._fila("bloque", bloque=bloque, campo="ruido_ambiente", valor="ninguno")
         self.ambiente_actual = bloque
 
     def show_step(self):
         paso = self.pasos[self.indice]
         tipo = paso["tipo"]
+        if self.detenida:
+            return
         nuevo = self.indice != self.paso_dibujado
-        if nuevo:
-            self.salidas["auriculares"].detener()
-            self._entrar_seccion(paso["seccion"])
-            if "bloque" in paso:
-                self._poner_ambiente(paso["bloque"])
-            elif tipo == "cierre":
-                self._poner_ambiente(None)
-            if tipo == "transicion" or tipo == "bloque_inicio":
-                if paso["anc"] != self.anc_actual:
-                    self.cambiar_anc(paso["anc"], motivo=tipo)
-            elif tipo == "a_fin":
-                self.salidas["ruido"].detener("mssn")
-            elif tipo == "oracion":
-                self.reproducciones = 0
-            elif tipo == "anclaje":
-                self.salidas["auriculares"].reproducir(self.ruta_fragmento[paso["musica"]],
-                                                       self.cfg["nivel_anclaje_db"], loop=True, clave="musica")
-                self._fila("anclaje", tarea="BC", bloque=paso["bloque"], posicion_bloque=paso["posicion"],
-                           musica=paso["musica"], anc=self.anc_actual, ganancia_db=self.cfg["nivel_anclaje_db"],
-                           campo="vez", valor=paso["vez"])
-            elif tipo == "escenario":
-                inicial = random.Random(self.cfg["participante"] * 100 + paso["numero"]).randint(1, PASOS_SLIDER)
-                self.escenario = {"inicial": inicial, "paso": inicial, "confirmado": False,
-                                  "inicio": time.monotonic()}
-                self.salidas["auriculares"].reproducir(self.ruta_fragmento[paso["musica"]], paso_a_db(inicial),
-                                                       loop=True, clave="musica")
+        try:
+            if nuevo:
+                self._preparar_paso(paso)
+        except ArchivoFaltante as falta:
+            self._detener_por_falta(str(falta))
+            return
         self.paso_dibujado = self.indice
 
         self._refresh_stepper()
@@ -670,6 +686,35 @@ class PsychoacousticPilot(tk.Tk):
         body = self._card()
         getattr(self, "_pantalla_" + tipo)(body, paso)
         self._dibujar_footer()
+
+    def _preparar_paso(self, paso):
+        """Audio y ANC al entrar a una pantalla nueva."""
+        tipo = paso["tipo"]
+        self.salidas["auriculares"].detener()
+        self._entrar_seccion(paso["seccion"])
+        if "bloque" in paso:
+            self._poner_ambiente(paso["bloque"])
+        elif tipo == "cierre":
+            self._poner_ambiente(None)
+        if tipo == "transicion" or tipo == "bloque_inicio":
+            if paso["anc"] != self.anc_actual:
+                self.cambiar_anc(paso["anc"], motivo=tipo)
+        elif tipo == "a_fin":
+            self.salidas["ruido"].detener("mssn")
+        elif tipo == "oracion":
+            self.reproducciones = 0
+        elif tipo == "anclaje":
+            self._reproducir("auriculares", self.ruta_fragmento[paso["musica"]],
+                             self.cfg["nivel_anclaje_db"], loop=True, clave="musica")
+            self._fila("anclaje", tarea="BC", bloque=paso["bloque"], posicion_bloque=paso["posicion"],
+                       musica=paso["musica"], anc=self.anc_actual, ganancia_db=self.cfg["nivel_anclaje_db"],
+                       campo="vez", valor=paso["vez"])
+        elif tipo == "escenario":
+            inicial = random.Random(self.cfg["participante"] * 100 + paso["numero"]).randint(1, PASOS_SLIDER)
+            self.escenario = {"inicial": inicial, "paso": inicial, "confirmado": False,
+                              "inicio": time.monotonic()}
+            self._reproducir("auriculares", self.ruta_fragmento[paso["musica"]], paso_a_db(inicial),
+                             loop=True, clave="musica")
 
     # ------------------------------------------------------------ pantallas
 
@@ -696,8 +741,12 @@ class PsychoacousticPilot(tk.Tk):
 
     def _iniciar_demo(self):
         self.demo = {"estado": "en_curso", "inicio": time.monotonic(), "cambios": 0}
-        self.salidas["ruido"].reproducir(self.rutas["trafico"], self.cfg["ganancia_trafico_db"], loop=True,
-                                         clave="demo")
+        try:
+            self._reproducir("ruido", self.rutas["trafico"], self.cfg["ganancia_trafico_db"], loop=True,
+                             clave="demo")
+        except ArchivoFaltante as falta:
+            self._detener_por_falta(str(falta))
+            return
         self._fila("evento", campo="demo_anc", valor="inicio")
         self.show_step()
         self._tic_demo()
@@ -741,8 +790,12 @@ class PsychoacousticPilot(tk.Tk):
 
     def _iniciar_mssn(self):
         if not self.mssn_iniciado:
-            self.salidas["ruido"].reproducir(self.rutas["mssn"], self.cfg["ganancia_mssn_db"], loop=True,
-                                             clave="mssn")
+            try:
+                self._reproducir("ruido", self.rutas["mssn"], self.cfg["ganancia_mssn_db"], loop=True,
+                                 clave="mssn")
+            except ArchivoFaltante as falta:
+                self._detener_por_falta(str(falta))
+                return
             self.mssn_iniciado = True
             self._fila("evento", tarea="A", campo="mssn", valor="inicio")
         self.show_step()
@@ -792,8 +845,12 @@ class PsychoacousticPilot(tk.Tk):
                       command=lambda v=valor: self._puntuar(paso, v)).pack(side="left", padx=3)
 
     def _reproducir_oracion(self, paso):
-        self.salidas["auriculares"].reproducir(ses.ruta_oracion(self.base, paso["lista"], paso["oracion"]),
-                                               self.cfg["ganancia_voz_db"], clave="oracion", fundido=False)
+        try:
+            self._reproducir("auriculares", ses.ruta_oracion(self.base, paso["lista"], paso["oracion"]),
+                             self.cfg["ganancia_voz_db"], clave="oracion", fundido=False)
+        except ArchivoFaltante as falta:
+            self._detener_por_falta(str(falta))
+            return
         self.reproducciones += 1
         if self.reproducciones == 1:
             self.show_step()

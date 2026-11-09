@@ -63,7 +63,7 @@ REPORTE = os.path.join(DESTINO, "reporte_recorte.csv")
 
 FS = 44100
 DURACION_S = 30.0
-CRUCE_S = 0.5          # crossfade de la música y el ruido blanco
+CRUCE_S = 0.5          # crossfade de la música
 PICO_MAX_DBFS = -1.0
 
 # Criterio de selección de los ruidos ambientales (editables)
@@ -75,7 +75,7 @@ MARGEN_BORDE_S = 1.0       # se excluyen el inicio y el final del archivo (silen
 CRUCE_RUIDO_S = 0.05       # crossfade final-inicio de los ruidos ambientales
 NIVEL_RUIDO_LAEQ_DBFS = -27.0  # L_Aeq común de los clips exportados (el pico debe quedar <= PICO_MAX_DBFS)
 
-# (archivo de salida, archivo de origen o None si se genera, inicio en s)
+# (archivo de salida, archivo de origen, inicio en s)
 CLIPS = (
     ("musica_pop.ogg", "gr0za-pop-pop-music-577843.mp3", 55.0),
     # Jazz y techno: inicio = ventana de 30 s con menor L10 - L90 entre las que cumplen
@@ -84,9 +84,6 @@ CLIPS = (
     # (Arabesque n.º 1) al que le faltaban hasta 48 dB respecto del LTASS entre 3 y 10 kHz.
     ("musica_jazz.ogg", "atlasaudio-relaxing-jazz-621593.mp3", 78.0),
     ("musica_techno.ogg", "monume-techno-556495.mp3", 54.0),
-    # Placeholder del MSSN: ruido blanco a -20 dBFS RMS (no estaba
-    # audiocheck.net_whitenoise.wav, se genera con semilla fija).
-    ("ruido_blanco.ogg", None, 0.0),
 )
 
 # (archivo de salida, archivo de origen): el inicio lo elige el análisis
@@ -115,11 +112,6 @@ def leer_original(nombre):
 
 def cargar(nombre, inicio, cruce_s):
     total = int((DURACION_S + cruce_s) * FS)
-    if nombre is None:
-        rng = np.random.default_rng(1234)
-        ruido = rng.standard_normal(total) * 10 ** (-20 / 20)
-        return np.column_stack([ruido, ruido])
-
     primera = int(inicio * FS)
     tramo = leer_original(nombre)[primera:primera + total]
     if len(tramo) < total:
