@@ -46,15 +46,32 @@ def palabras(texto):
 
 
 def proponer_claves(texto):
-    """Las palabras de contenido en orden; si sobran, se descartan las más cortas."""
+    """5 palabras de contenido, en el orden en que aparecen en la oración.
+
+    Si hay menos de 5, se completa con las primeras palabras funcionales de más de 2 letras; si
+    sobran, se descartan las más cortas.
+    """
     todas = palabras(texto)
-    contenido = [p for p in todas if p.lower() not in FUNCIONALES]
-    if len(contenido) < PALABRAS_CLAVE:
-        extra = [p for p in todas if p not in contenido and len(p) > 2]
-        contenido += extra[:PALABRAS_CLAVE - len(contenido)]
-    while len(contenido) > PALABRAS_CLAVE:
-        contenido.remove(min(contenido, key=len))
-    return "|".join(contenido)
+    elegidas = [i for i, p in enumerate(todas) if p.lower() not in FUNCIONALES]
+    if len(elegidas) < PALABRAS_CLAVE:
+        extra = [i for i, p in enumerate(todas) if i not in elegidas and len(p) > 2]
+        elegidas += extra[:PALABRAS_CLAVE - len(elegidas)]
+    while len(elegidas) > PALABRAS_CLAVE:
+        elegidas.remove(min(elegidas, key=lambda i: len(todas[i])))
+    return "|".join(todas[i] for i in sorted(elegidas))
+
+
+def reordenar(ruta):
+    """Recalcula palabras_clave de un oraciones.csv existente sin volver a transcribir."""
+    with open(ruta, newline="", encoding="utf-8-sig") as f:
+        filas = list(csv.DictReader(f))
+    for fila in filas:
+        fila["palabras_clave"] = proponer_claves(fila["texto"])
+    with open(ruta, "w", newline="", encoding="utf-8-sig") as f:
+        escritor = csv.DictWriter(f, fieldnames=COLUMNAS)
+        escritor.writeheader()
+        escritor.writerows(filas)
+    return filas
 
 
 def leer_16k(ruta):
@@ -82,7 +99,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--modelo", default="medium", help="modelo de faster-whisper (default medium)")
     parser.add_argument("--forzar", action="store_true", help="pisar un oraciones.csv que ya tiene textos")
+    parser.add_argument("--solo-claves", action="store_true",
+                        help="no transcribir: recalcular palabras_clave sobre los textos que ya están")
     args = parser.parse_args()
+    if args.solo_claves:
+        for fila in reordenar(SALIDA):
+            print("L{} O{}: {}".format(fila["lista"], fila["oracion"], fila["palabras_clave"]))
+        return
     if tiene_textos(SALIDA) and not args.forzar:
         raise SystemExit("{} ya tiene textos; usá --forzar para regenerarlo.".format(SALIDA))
 
