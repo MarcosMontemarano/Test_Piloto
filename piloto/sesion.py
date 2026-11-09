@@ -239,26 +239,29 @@ def cargar_calibracion(base):
 COLUMNAS = [
     "momento", "tipo", "tarea", "bloque", "posicion_bloque", "musica", "anc", "anc_cambio",
     "lista", "oracion", "practica", "puntaje", "reproducciones", "paso_inicial", "paso_final",
-    "ganancia_db", "nivel_dba", "ccr", "ccr_texto", "campo", "valor",
+    "ganancia_db", "nivel_dba", "ccr", "ccr_texto", "campo", "valor", "prueba",
 ]
 
 
 class Registro:
     """CSV por participante en datos/. Se escribe y se vacía fila por fila."""
 
-    def __init__(self, base, participante):
+    def __init__(self, base, participante, prueba=False):
         carpeta = os.path.join(base, "datos")
         os.makedirs(carpeta, exist_ok=True)
         self.inicio = datetime.now()
-        self.ruta = os.path.join(carpeta, "participante_{:03d}_{}.csv".format(
-            participante, self.inicio.strftime("%Y%m%d-%H%M%S")))
+        # prueba: todo lo que se registra va con prueba = "si" (y el archivo lleva _PRUEBA).
+        self.prueba = prueba
+        self.ruta = os.path.join(carpeta, "participante_{:03d}_{}{}.csv".format(
+            participante, self.inicio.strftime("%Y%m%d-%H%M%S"), "_PRUEBA" if prueba else ""))
         self.archivo = open(self.ruta, "w", newline="", encoding="utf-8-sig")
         self.escritor = csv.DictWriter(self.archivo, fieldnames=COLUMNAS)
         self.escritor.writeheader()
 
     def fila(self, tipo, **campos):
         campos = {k: v for k, v in campos.items() if v is not None}
-        campos.update(momento=datetime.now().isoformat(timespec="milliseconds"), tipo=tipo)
+        campos.update(momento=datetime.now().isoformat(timespec="milliseconds"), tipo=tipo,
+                      prueba="si" if self.prueba else "no")
         self.escritor.writerow(campos)
         self.archivo.flush()
 

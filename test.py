@@ -45,6 +45,10 @@ GANANCIAS = (
 )
 GANANCIA_AMBIENTE = {"trafico": "ganancia_trafico_db", "avion": "ganancia_avion_db"}
 
+# Modo prueba: "Empezar desde" (configuración) -> índice de sección. Ctrl+Shift+S salta de pantalla.
+EMPEZAR_DESDE = (("Inicio (sesión completa)", 0), ("Instrucciones", 1), ("Tarea A", 3), ("Bloque 1", 4),
+                 ("Bloque 2", 5), ("Bloque 3", 6), ("Cierre", 7))
+
 SECCIONES = ("bienvenida", "instrucciones", "demo_anc", "tarea_A", "bloque_1", "bloque_2",
              "bloque_3", "cierre")
 
@@ -103,6 +107,9 @@ class PsychoacousticPilot(tk.Tk):
         self.fullscreen = False
         self.bind_all("<F11>", self._toggle_fullscreen)
         self.bind_all("<Escape>", self._leave_fullscreen)
+        # Solo para el experimentador: saltar a la pantalla siguiente (queda registrado como prueba).
+        self.bind_all("<Control-Shift-S>", self._saltar)
+        self.bind_all("<Control-Shift-s>", self._saltar)
         self.title(TITULO_VENTANA)
         self.configure(bg=FONDO)
         self.protocol("WM_DELETE_WINDOW", self.close)
@@ -315,6 +322,15 @@ class PsychoacousticPilot(tk.Tk):
         self.var_participante = tk.StringVar(value=str(self.cfg["participante"]))
         ttk.Entry(ganancias, textvariable=self.var_participante, width=8, font=self._font(11)).grid(
             row=fila_p, column=1, sticky="w", pady=(10, 3))
+        tk.Label(ganancias, text="Empezar desde", bg=SUPERFICIE, fg=TEXTO, font=self._font(11, "bold"),
+                 anchor="e").grid(row=fila_p, column=2, sticky="e", padx=(16, 6), pady=(10, 3))
+        self.empezar_desde = ttk.Combobox(ganancias, state="readonly", width=22, font=self._font(11),
+                                          values=[nombre for nombre, _ in EMPEZAR_DESDE])
+        self.empezar_desde.current(0)
+        self.empezar_desde.grid(row=fila_p, column=3, sticky="w", pady=(10, 3))
+        tk.Label(ganancias, text="Modo prueba: empezar en otra parte o saltar pantallas con Ctrl+Shift+S "
+                                 "queda registrado como prueba en el CSV.",
+                 bg=SUPERFICIE, fg=MUTED, font=self._font(9)).grid(row=fila_p + 1, column=0, columnspan=4, pady=(2, 0))
 
         self.rutas, faltantes = ses.buscar_archivos(self.base)
         texto_audio = ("Audio: todos los archivos encontrados en {}".format(os.path.join(self.base, "audio"))
@@ -482,7 +498,10 @@ class PsychoacousticPilot(tk.Tk):
             self.error_config.configure(text="No se pudo cargar el audio: {}".format(error), fg=ALERTA)
             return
 
-        self.registro = ses.Registro(self.base, participante)
+        nombre_inicio, self.seccion_inicio = EMPEZAR_DESDE[max(0, self.empezar_desde.current())]
+        self.registro = ses.Registro(self.base, participante, prueba=self.seccion_inicio != 0)
+        if self.seccion_inicio != 0:
+            self.registro.sesion("modo_prueba", "empieza desde: " + nombre_inicio)
         control = self.control_cfg if getattr(self, "anc_conectado", False) else None
         if control is None:
             self._anc_listo(participante, None, None)
@@ -505,8 +524,24 @@ class PsychoacousticPilot(tk.Tk):
             self.registro.sesion("anc_submodo", submodo)
             self.registro.sesion("anc_estado_inicial", estado)
         self.pasos = self._armar_pasos()
-        self.indice = 0
+        self.indice = next(i for i, p in enumerate(self.pasos) if p["seccion"] == self.seccion_inicio)
         self.show_step()
+
+    def _saltar(self, _evento=None):
+        """Ctrl+Shift+S: pasa a la pantalla siguiente sin registrar respuesta (modo prueba)."""
+        if not self.pasos or self.detenida or self.indice >= len(self.pasos) - 1:
+            return "break"
+        if not self.registro.prueba:
+            self.registro.prueba = True
+            self._fila("sesion", campo="modo_prueba", valor="salto con Ctrl+Shift+S")
+        tipo = self.pasos[self.indice]["tipo"]
+        if tipo == "demo" and self.demo["estado"] != "terminada":
+            self.demo["estado"] = "terminada"
+            self.salidas["ruido"].detener("demo")
+        self._fila("evento", campo="salto", valor="{} (pantalla {})".format(tipo, self.indice + 1))
+        self.indice += 1
+        self.show_step()
+        return "break"
 
     def _registrar_sesion(self, participante):
         r, cb = self.registro, self.cb

@@ -131,6 +131,15 @@ Manual en macOS o Linux:
 PyInstaller genera el ejecutable solo para el sistema operativo donde se ejecuta el build.
 En todos los casos hay que copiar la carpeta audio/ junto al ejecutable.
 
+MODO PRUEBA (solo experimentador)
+
+- En la configuracion, "Empezar desde" (Instrucciones, Tarea A, Bloque 1, 2 o 3, Cierre) arranca
+  la sesion en esa parte, para probar partes sueltas.
+- Ctrl+Shift+S pasa a la pantalla siguiente sin registrar respuesta.
+- Una sesion que no empieza desde el inicio se guarda como datos/participante_NNN_..._PRUEBA.csv
+  con prueba = si en todas las filas. Si en una sesion normal se usa Ctrl+Shift+S, desde ese
+  momento las filas quedan con prueba = si y cada salto se registra.
+
 TEXTOS DEL PARTICIPANTE
 
 Todo lo que ve el participante (instrucciones, demostracion, anclaje, pausas, escenarios,
