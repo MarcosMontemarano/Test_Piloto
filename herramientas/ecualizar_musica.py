@@ -19,7 +19,7 @@ herramientas/salidas/eq_<nombre>.csv y .png.
 
 Uso:
     python herramientas/ecualizar_musica.py
-    python herramientas/ecualizar_musica.py --archivo audio/clips/musica_piano.ogg
+    python herramientas/ecualizar_musica.py --archivo audio/clips/musica_jazz.ogg
 """
 
 import argparse

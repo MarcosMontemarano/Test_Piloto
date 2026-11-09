@@ -3,6 +3,9 @@
 Uso (solo para desarrollo, no lo necesita el ejecutable):
     pip install numpy scipy soundfile matplotlib
     python tools/recortar_audios.py
+    python tools/recortar_audios.py --solo musica_jazz.ogg musica_techno.ogg
+
+Con --solo se generan únicamente los clips indicados; el resto (y el reporte) no se toca.
 
 Requiere los archivos originales en audio/ (no se versionan en git).
 
@@ -41,6 +44,7 @@ corresponde a una senoidal de 1 kHz a fondo de escala. No son dBA SPL.
 Salidas: los clips .ogg, audio/clips/reporte_recorte.csv y una figura PNG por
 ruido ambiental (audio/clips/nivel_<clip>.png).
 """
+import argparse
 import csv
 import os
 from math import gcd
@@ -74,6 +78,12 @@ NIVEL_RUIDO_LAEQ_DBFS = -27.0  # L_Aeq común de los clips exportados (el pico d
 # (archivo de salida, archivo de origen o None si se genera, inicio en s)
 CLIPS = (
     ("musica_pop.ogg", "gr0za-pop-pop-music-577843.mp3", 55.0),
+    # Jazz y techno: inicio = ventana de 30 s con menor L10 - L90 entre las que cumplen
+    # L_AFmax - L_Aeq <= UMBRAL_PICO_DB (mismo análisis que los ruidos ambientales; para el pop
+    # daría 53 s, prácticamente el tramo elegido a mano). El jazz reemplaza a un piano solo
+    # (Arabesque n.º 1) al que le faltaban hasta 48 dB respecto del LTASS entre 3 y 10 kHz.
+    ("musica_jazz.ogg", "atlasaudio-relaxing-jazz-621593.mp3", 78.0),
+    ("musica_techno.ogg", "monume-techno-556495.mp3", 54.0),
     # Placeholder del MSSN: ruido blanco a -20 dBFS RMS (no estaba
     # audiocheck.net_whitenoise.wav, se genera con semilla fija).
     ("ruido_blanco.ogg", None, 0.0),
@@ -341,14 +351,31 @@ def escribir_reporte(filas):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Recorta los clips en loop de audio/clips/.")
+    parser.add_argument("--solo", nargs="+", metavar="CLIP",
+                        help="generar solo estos clips (p. ej. musica_jazz.ogg); no rehace el reporte")
+    args = parser.parse_args()
+    nombres = {c[0] for c in CLIPS} | {c[0] for c in RUIDOS_AMBIENTE}
+    if args.solo and set(args.solo) - nombres:
+        parser.error("clips desconocidos: {}".format(", ".join(sorted(set(args.solo) - nombres))))
+
     os.makedirs(DESTINO, exist_ok=True)
     for salida, origen, inicio in CLIPS:
-        clip, _ = preparar_loop(cargar(origen, inicio, CRUCE_S), CRUCE_S)
+        if args.solo and salida not in args.solo:
+            continue
+        clip, ganancia_db = preparar_loop(cargar(origen, inicio, CRUCE_S), CRUCE_S)
         guardar_ogg(clip, salida)
+        if ganancia_db < 0:
+            print("  pico limitado a {:g} dBFS: ganancia {:.2f} dB".format(PICO_MAX_DBFS, ganancia_db))
 
+    ruidos = [r for r in RUIDOS_AMBIENTE if not args.solo or r[0] in args.solo]
+    if not ruidos:
+        return
+    if args.solo:
+        print("AVISO: con --solo el reporte se reescribe solo con los ruidos indicados.")
     sos = filtro_a(FS)
     informar_filtro_a(sos)
-    filas = [procesar_ruido_ambiente(salida, origen, sos) for salida, origen in RUIDOS_AMBIENTE]
+    filas = [procesar_ruido_ambiente(salida, origen, sos) for salida, origen in ruidos]
     escribir_reporte(filas)
     print("Reporte: {}".format(os.path.relpath(REPORTE, RAIZ)))
 
