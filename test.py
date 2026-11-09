@@ -20,6 +20,10 @@ DURACION_MINUTOS = 25
 
 # Slider de nivel preferido: PASOS_SLIDER pasos de PASO_DB dB (el último paso = 0 dB).
 PASOS_SLIDER = 20
+# Voz de la Tarea A: pasa-altos al cargarla (solo lo que suena en el test; los archivos, el LTASS
+# y el MSSN no cambian). Atenúa golpes graves de 60-90 Hz de la grabación (L3-O3, L3-O2, L2-O4);
+# la F0 de la hablante no baja de ~156 Hz (ahí el filtro resta 0,9 dB).
+PASA_ALTOS_VOZ_HZ = 90
 PASO_DB = 2.0  # rango: paso 1 = -38 dB ... paso 20 = 0 dB
 
 # Demostración del ANC: ruido de tráfico DEMO_ANC_S segundos; el ANC cambia cada DEMO_INTERVALO_S.
@@ -554,7 +558,7 @@ class PsychoacousticPilot(tk.Tk):
             auriculares, ruido = self.salidas["auriculares"], self.salidas["ruido"]
             for lista in ses.LISTAS_TAREA_A + (ses.LISTA_PRACTICA,):
                 for n in range(1, ses.ORACIONES_POR_LISTA + 1):
-                    auriculares.cargar(ses.ruta_oracion(self.base, lista, n))
+                    auriculares.cargar(ses.ruta_oracion(self.base, lista, n), pasa_altos_hz=PASA_ALTOS_VOZ_HZ)
             for ruta in self.rutas["musica"]:
                 auriculares.cargar(ruta, circular=True)
             for clave in ("mssn", "trafico", "avion"):
@@ -629,6 +633,7 @@ class PsychoacousticPilot(tk.Tk):
         if self.control_anc:
             r.sesion("openscq30_cli", self.control_anc.cli)
             r.sesion("anc_mac", self.control_anc.mac)
+        r.sesion("voz_pasa_altos", "Butterworth 2.º orden ida y vuelta, {} Hz".format(PASA_ALTOS_VOZ_HZ))
         r.sesion("slider", "{} pasos de {:g} dB (paso {} = 0 dB)".format(PASOS_SLIDER, PASO_DB, PASOS_SLIDER))
         r.sesion("calibracion_niveles", "si" if self.calibracion(PASOS_SLIDER, "") is not None else "no")
 
@@ -1070,7 +1075,8 @@ class PsychoacousticPilot(tk.Tk):
         paso = self.pasos[indice]
         try:
             self._reproducir("auriculares", ses.ruta_oracion(self.base, paso["lista"], paso["oracion"]),
-                             self.cfg["ganancia_voz_db"], clave="oracion", fundido=False)
+                             self.cfg["ganancia_voz_db"], clave="oracion", fundido=False,
+                             pasa_altos_hz=PASA_ALTOS_VOZ_HZ)
         except ArchivoFaltante as falta:
             self._detener_por_falta(str(falta))
             return

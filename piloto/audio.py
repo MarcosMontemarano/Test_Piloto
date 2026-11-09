@@ -17,7 +17,7 @@ from math import gcd
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
-from scipy.signal import resample_poly
+from scipy.signal import butter, resample_poly, sosfiltfilt
 
 BLOQUE = 1024
 SIN_RESPUESTA_S = 2.0
@@ -88,9 +88,17 @@ def preseleccionar(salidas, claves):
     return None
 
 
-def leer_audio(ruta, fs, circular=False):
-    """Lee un archivo como float32 estéreo a la frecuencia fs."""
+def pasa_altos(x, fs, fc_hz):
+    """Butterworth de 2.º orden aplicado ida y vuelta: fase cero, 24 dB/oct en total."""
+    sos = butter(2, fc_hz, "highpass", fs=fs, output="sos")
+    return sosfiltfilt(sos, x, axis=0).astype(np.float32)
+
+
+def leer_audio(ruta, fs, circular=False, pasa_altos_hz=None):
+    """Lee un archivo como float32 estéreo a la frecuencia fs (con pasa-altos opcional)."""
     x, fs_archivo = sf.read(ruta, dtype="float32", always_2d=True)
+    if pasa_altos_hz:
+        x = pasa_altos(x, fs_archivo, pasa_altos_hz)
     if x.shape[1] == 1:
         x = np.repeat(x, 2, axis=1)
     x = x[:, :2]
@@ -226,14 +234,15 @@ class Salida:
         else:
             salida[:] = mezcla
 
-    def cargar(self, ruta, circular=False):
-        clave = (ruta, circular)
+    def cargar(self, ruta, circular=False, pasa_altos_hz=None):
+        clave = (ruta, circular, pasa_altos_hz)
         if clave not in self.cache:
-            self.cache[clave] = leer_audio(ruta, self.fs, circular)
+            self.cache[clave] = leer_audio(ruta, self.fs, circular, pasa_altos_hz)
         return self.cache[clave]
 
-    def reproducir(self, ruta, ganancia_db=0.0, loop=False, clave=None, fundido=True):
-        self.reproducir_datos(self.cargar(ruta, circular=loop), ganancia_db, loop, clave, fundido)
+    def reproducir(self, ruta, ganancia_db=0.0, loop=False, clave=None, fundido=True, pasa_altos_hz=None):
+        self.reproducir_datos(self.cargar(ruta, circular=loop, pasa_altos_hz=pasa_altos_hz),
+                              ganancia_db, loop, clave, fundido)
 
     def reproducir_datos(self, datos, ganancia_db=0.0, loop=False, clave=None, fundido=True):
         fuente = Fuente(datos, db_a_lineal(ganancia_db), loop, clave, fundido)
