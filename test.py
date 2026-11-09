@@ -86,7 +86,8 @@ TEXTOS = {
     "oracion": "Oración {numero} de {total}",
     "escucha_oracion": "Escuchá con atención…",
     "panel_experimentador": "Panel del experimentador (no para el oyente)",
-    "puntaje_ayuda": "Palabras clave correctas (0,5 = error menor de número o género)",
+    "puntaje_ayuda": "Palabras clave acertadas (si corresponde, marcá antes el medio punto)",
+    "medio_punto": "+ ½ (error menor de número o género)",
     "tarea_a_fin": "Terminaste la tarea de oraciones. ¡Muy bien!",
     "transicion_titulo": "Pausa breve",
     "transicion_texto": "Esperá un momento: enseguida seguimos.",
@@ -132,7 +133,7 @@ OPCIONES_CCR = (
 )
 OPCIONES_FATIGA = ("Mucho", "Intermedio", "Poco")
 OPCIONES_COMODIDAD = ("Sí", "No", "Intermedio")
-PUNTAJES = [i / 2 for i in range(11)]
+PALABRAS_CLAVE = 5
 FUENTES_PREFERIDAS = ("Calibri", "Segoe UI", "Arial", "Helvetica", "DejaVu Sans")
 
 FONDO = "#f3f6f5"
@@ -196,6 +197,7 @@ class PsychoacousticPilot(tk.Tk):
         self.mssn_iniciado = False
         self.demo = {"estado": "espera"}
         self.reproducciones = 0
+        self.medio_punto = tk.BooleanVar(value=False)
         self.escenario = {}
         self.fatiga = tk.StringVar(value="")
         self.comodidad = tk.StringVar(value="")
@@ -699,6 +701,7 @@ class PsychoacousticPilot(tk.Tk):
             self._fila("evento", tarea="A", campo="mssn", valor="fin")
         elif tipo == "oracion":
             self.reproducciones = 0
+            self.medio_punto.set(False)
             indice = self.indice
             self.after(1000, lambda: self._reproducir_oracion(indice))
         elif tipo == "anclaje":
@@ -804,33 +807,43 @@ class PsychoacousticPilot(tk.Tk):
         panel.pack(fill="x", padx=20, pady=(4, 0))
         tk.Label(panel, text=TEXTOS["panel_experimentador"], bg=PANEL, fg=TEXTO,
                  font=self._font(11, "bold")).pack()
-        datos = self.oraciones.get((paso["lista"], paso["oracion"]))
+        archivo = os.path.basename(ses.ruta_oracion(self.base, paso["lista"], paso["oracion"]))
+        datos = self.oraciones.get(archivo)
         rotulo = "Lista {} – Oración {}".format(paso["lista"], paso["oracion"])
         if datos:
-            texto, claves = datos
+            texto, claves, estado = datos
             caja = tk.Text(panel, height=2, wrap="word", bg=PANEL, fg=TEXTO, relief="flat",
-                           font=self._font(14), highlightthickness=0)
+                           font=self._font(17), highlightthickness=0)
             caja.insert("1.0", texto)
-            caja.tag_configure("clave", font=self._font(14, "bold"), foreground=ACENTO_OSCURO, underline=True)
+            caja.tag_configure("clave", font=self._font(17, "bold"), foreground=ACENTO_OSCURO, underline=True)
             caja.tag_configure("centro", justify="center")
             caja.tag_add("centro", "1.0", "end")
+            # Cada palabra clave se marca en orden, a partir de la anterior (así una palabra
+            # repetida o funcional se resalta solo donde corresponde).
+            desde = 0
             for palabra in claves:
-                for m in re.finditer(r"\b{}\b".format(re.escape(palabra)), texto, re.IGNORECASE):
+                m = re.compile(r"\b{}\b".format(re.escape(palabra)), re.IGNORECASE).search(texto, desde)
+                if m:
                     caja.tag_add("clave", "1.0+{}c".format(m.start()), "1.0+{}c".format(m.end()))
+                    desde = m.end()
             caja.configure(state="disabled")
             caja.pack(fill="x", pady=(4, 0))
-            tk.Label(panel, text=rotulo, bg=PANEL, fg=MUTED, font=self._font(9)).pack()
+            tk.Label(panel, text=rotulo + (" · claves provisorias" if estado == "provisorio" else ""),
+                     bg=PANEL, fg=MUTED, font=self._font(9)).pack()
         else:
             tk.Label(panel, text=rotulo, bg=PANEL, fg=TEXTO, font=self._font(15, "bold")).pack(pady=(4, 0))
-        tk.Label(panel, text=TEXTOS["puntaje_ayuda"], bg=PANEL, fg=MUTED, font=self._font(9)).pack(pady=(4, 4))
+        habilitado = self.reproducciones > 0
+        tk.Checkbutton(panel, text=TEXTOS["medio_punto"], variable=self.medio_punto, bg=PANEL, fg=TEXTO,
+                       activebackground=PANEL, selectcolor=SUPERFICIE, font=self._font(12, "bold"),
+                       state="normal" if habilitado else "disabled").pack(pady=(6, 2))
+        tk.Label(panel, text=TEXTOS["puntaje_ayuda"], bg=PANEL, fg=MUTED, font=self._font(9)).pack(pady=(0, 4))
         fila = tk.Frame(panel, bg=PANEL)
         fila.pack()
-        habilitado = self.reproducciones > 0
-        for valor in PUNTAJES:
-            tk.Button(fila, text=formato_puntaje(valor), width=4, height=2, font=self._font(15, "bold"),
+        for aciertos in range(PALABRAS_CLAVE + 1):
+            tk.Button(fila, text=str(aciertos), width=5, height=2, font=self._font(20, "bold"),
                       bg=SUPERFICIE if habilitado else "#d9dddc", fg=ACENTO_OSCURO, activebackground=ACENTO_CLARO,
                       relief="solid", bd=1, state="normal" if habilitado else "disabled",
-                      command=lambda v=valor: self._puntuar(paso, v)).pack(side="left", padx=3)
+                      command=lambda n=aciertos: self._puntuar(paso, n)).pack(side="left", padx=6)
 
     def _reproducir_oracion(self, indice):
         """Reproduce una sola vez la oración de la pantalla 'indice', si todavía es la actual."""
@@ -846,10 +859,14 @@ class PsychoacousticPilot(tk.Tk):
         self.reproducciones = 1
         self.show_step()
 
-    def _puntuar(self, paso, valor):
+    def _puntuar(self, paso, aciertos):
+        """Puntaje = palabras clave acertadas + ½ si se marcó el error menor (máximo 5)."""
+        medio = bool(self.medio_punto.get())
+        valor = min(PALABRAS_CLAVE, aciertos + (0.5 if medio else 0))
         self._fila("ensayo", tarea="A", anc=self.anc_actual, anc_cambio="manual", lista=paso["lista"],
                    oracion=paso["oracion"], practica="si" if paso["practica"] else "no",
-                   puntaje=formato_puntaje(valor), reproducciones=self.reproducciones)
+                   puntaje=formato_puntaje(valor), reproducciones=self.reproducciones,
+                   campo="aciertos+medio", valor="{}+{}".format(aciertos, "½" if medio else "0"))
         self.indice += 1
         self.show_step()
 

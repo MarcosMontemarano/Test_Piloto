@@ -98,20 +98,23 @@ def nombre_fragmento(ruta):
 
 
 def cargar_oraciones(base):
-    """{(lista, oracion): (texto, [palabras clave])} desde audio/quicksin/oraciones.csv, si tiene textos."""
+    """{nombre del WAV: (texto, [palabras clave], estado)} desde audio/quicksin/oraciones.csv.
+
+    Se indexa por la columna "archivo" (el WAV que suena), así el texto siempre corresponde a lo
+    que se reproduce. Las palabras clave van separadas por "|". Filas sin texto se ignoran.
+    """
     ruta = os.path.join(base, "audio", "quicksin", "oraciones.csv")
     oraciones = {}
     try:
         with open(ruta, newline="", encoding="utf-8-sig") as f:
             for fila in csv.DictReader(f):
                 texto = (fila.get("texto") or "").strip()
-                if not texto:
+                archivo = (fila.get("archivo") or "").strip()
+                if not texto or not archivo:
                     continue
-                claves = (fila.get("palabras_clave") or "").strip()
-                separador = r"[;,|]" if re.search(r"[;,|]", claves) else r"\s+"
-                oraciones[(int(fila["lista"]), int(fila["oracion"]))] = (
-                    texto, [c.strip() for c in re.split(separador, claves) if c.strip()])
-    except (OSError, KeyError, ValueError):
+                claves = [c.strip() for c in (fila.get("palabras_clave") or "").split("|") if c.strip()]
+                oraciones[archivo] = (texto, claves, (fila.get("estado") or "").strip())
+    except OSError:
         pass
     return oraciones
 
