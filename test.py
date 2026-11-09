@@ -864,6 +864,11 @@ class PsychoacousticPilot(tk.Tk):
         self._paragraph(body, TEXTOS["instrucciones"], 16, justify="left")
 
     def _pantalla_demo(self, body, _paso):
+        if self.demo["estado"] == "terminada":
+            # Al terminar se ve solo el cierre de la demostración, sin el texto anterior.
+            self._heading(body, TEXTOS["demo_fin"])
+            self._paragraph(body, TEXTOS["demo_fin_explicacion"])
+            return
         self._heading(body, TEXTOS["demo_titulo"])
         self._paragraph(body, TEXTOS["demo_texto"].format(segundos=DEMO_ANC_S))
         if self.demo["estado"] == "espera":
