@@ -31,7 +31,6 @@ def carpeta_base():
 CONFIG_DEFECTO = {
     "salida_ruido": {"nombre": None, "api": None},
     "salida_auriculares": {"nombre": None, "api": None},
-    "mostrar_todas_las_apis": False,
     "ganancia_mssn_db": 0.0,
     "ganancia_voz_db": 0.0,
     "ganancia_trafico_db": 0.0,

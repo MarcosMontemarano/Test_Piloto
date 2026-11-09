@@ -26,7 +26,14 @@ EXCLUIR = ("hands-free", "manos libres", "bthhfenum")
 
 
 def api_preferida():
-    """API de host cuyos nombres coinciden con los que muestra el sistema."""
+    """Única API de host que se usa para listar y abrir dispositivos.
+
+    En Windows, WASAPI (modo compartido): los nombres coinciden con los de Configuración de sonido
+    y no se truncan (MME los corta en 31 caracteres); cada dispositivo aparece una sola vez; anda
+    con la Scarlett y con el Bluetooth A2DP a la frecuencia del mezclador de Windows (el programa
+    remuestrea si hace falta). WDM-KS es inestable con el Bluetooth y DirectSound es una capa
+    vieja encima de WASAPI. ASIO no está en el PortAudio de sounddevice.
+    """
     if sys.platform.startswith("win"):
         return "Windows WASAPI"
     if sys.platform == "darwin":
@@ -41,9 +48,10 @@ def reiniciar_portaudio():
 
 
 def listar_salidas(todas=False):
+    """Salidas de la API preferida, una por nombre (todas=True: de todas las APIs)."""
     apis = sd.query_hostapis()
     preferida = api_preferida()
-    salidas = []
+    salidas, nombres = [], set()
     for indice, d in enumerate(sd.query_devices()):
         if d["max_output_channels"] < 1:
             continue
@@ -52,6 +60,9 @@ def listar_salidas(todas=False):
             continue
         if not todas and preferida and api != preferida:
             continue
+        if not todas and nombre in nombres:
+            continue
+        nombres.add(nombre)
         salidas.append({"indice": indice, "nombre": nombre, "api": api,
                         "canales": d["max_output_channels"], "fs": int(d["default_samplerate"])})
     if not salidas and not todas:

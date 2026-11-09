@@ -342,11 +342,10 @@ class PsychoacousticPilot(tk.Tk):
 
         opciones = tk.Frame(body, bg=SUPERFICIE)
         opciones.pack(fill="x", pady=(2, 2))
-        self.todas_apis = tk.BooleanVar(value=bool(self.cfg["mostrar_todas_las_apis"]))
-        ttk.Checkbutton(opciones, text="Mostrar todas las APIs de audio", variable=self.todas_apis,
-                        command=lambda: self._refrescar_dispositivos(False)).pack(side="left")
         ttk.Button(opciones, text="Actualizar dispositivos", style="Small.TButton",
-                   command=lambda: self._refrescar_dispositivos(True)).pack(side="left", padx=12)
+                   command=lambda: self._refrescar_dispositivos(True)).pack(side="left")
+        tk.Label(opciones, text="Dispositivos de {} (una entrada por dispositivo)".format(audio.api_preferida() or "audio"),
+                 bg=SUPERFICIE, fg=MUTED, font=self._font(9)).pack(side="left", padx=12)
         self.aviso_dispositivos = tk.Label(body, bg=SUPERFICIE, fg=ALERTA, font=self._font(11, "bold"))
         self.aviso_dispositivos.pack(pady=(0, 4))
 
@@ -436,7 +435,7 @@ class PsychoacousticPilot(tk.Tk):
                                   fg=ACENTO_OSCURO if self.anc_conectado else ALERTA)
 
     def _etiqueta(self, d):
-        return "{}   [{}]".format(d["nombre"], d["api"]) if self.todas_apis.get() else d["nombre"]
+        return d["nombre"]
 
     def _refrescar_dispositivos(self, reiniciar):
         elegidos = {z: s.dispositivo for z, s in self.salidas.items()}
@@ -444,7 +443,7 @@ class PsychoacousticPilot(tk.Tk):
             for s in self.salidas.values():
                 s.cerrar()
             audio.reiniciar_portaudio()
-        self.dispositivos = audio.listar_salidas(self.todas_apis.get())
+        self.dispositivos = audio.listar_salidas()
         self.mapa_dispositivos = {self._etiqueta(d): d for d in self.dispositivos}
         for zona, (_titulo, clave, claves) in ZONAS.items():
             combo = self.combos[zona]
@@ -516,7 +515,6 @@ class PsychoacousticPilot(tk.Tk):
 
         self.cfg.update(ganancias)
         self.cfg["participante"] = participante
-        self.cfg["mostrar_todas_las_apis"] = bool(self.todas_apis.get())
         for zona, (_t, clave, _cl) in ZONAS.items():
             d = self.salidas[zona].dispositivo
             self.cfg[clave] = {"nombre": d["nombre"], "api": d["api"]}
@@ -1187,7 +1185,7 @@ class PsychoacousticPilot(tk.Tk):
             salida.cerrar()
         try:
             audio.reiniciar_portaudio()
-            dispositivos = audio.listar_salidas(True)
+            dispositivos = audio.listar_salidas()
         except Exception:
             dispositivos = []
         for zona, salida in self.salidas.items():

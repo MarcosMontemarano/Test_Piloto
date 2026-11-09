@@ -50,9 +50,11 @@ PANTALLA DE CONFIGURACION (experimentador)
   "Soundcore" o "Q30". El perfil manos libres del Bluetooth no aparece en la lista (es
   mono a 16 kHz y degrada mucho el audio).
 - "Probar" reproduce 1 s de ruido rosa a -20 dBFS por esa salida.
-- La lista muestra los dispositivos como Windows (WASAPI) o macOS (Core Audio). "Mostrar
-  todas las APIs" muestra tambien MME, DirectSound y WDM-KS. "Actualizar dispositivos"
-  vuelve a leer la lista despues de conectar algo.
+- La lista muestra cada dispositivo una sola vez, con una unica API: WASAPI en Windows (los
+  nombres de Configuracion de sonido, completos; anda con la Scarlett y con el Bluetooth) y
+  Core Audio en macOS. Un dispositivo que Windows no tiene activo (por ejemplo, un jack sin
+  nada enchufado) no aparece. "Actualizar dispositivos" vuelve a leer la lista despues de
+  conectar algo.
 - Ganancias en dB (MSSN, voz, trafico, avion) y nivel fijo de la musica en los anclajes.
 - Numero de participante: define todos los contrabalanceos.
 - Todo se guarda en config.json junto al ejecutable y se recarga en la proxima sesion.
