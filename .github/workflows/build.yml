@@ -32,14 +32,12 @@ jobs:
       - name: Compilar (Windows)
         if: runner.os == 'Windows'
         run: >-
-          pyinstaller --noconfirm --onefile --windowed --name TestPiloto
-          --add-data "audio/clips;audio/clips" test.py
+          pyinstaller --noconfirm --onefile --windowed --name TestPiloto test.py
 
       - name: Compilar (macOS)
         if: runner.os == 'macOS'
         run: |
-          pyinstaller --noconfirm --onedir --windowed --name TestPiloto \
-            --add-data "audio/clips:audio/clips" test.py
+          pyinstaller --noconfirm --onedir --windowed --name TestPiloto test.py
           # ditto conserva los symlinks y permisos del bundle .app
           mkdir paquete
           ditto dist/TestPiloto.app paquete/TestPiloto.app

@@ -1,23 +1,6 @@
 PILOTO PSICOACUSTICO
 Impacto de auriculares ANC en la percepcion musical y comprension de letras en espanol rioplatense
 
-ABRIR LA APLICACION EN macOS
-
-1. Descomprimi TestPiloto-macos.zip (doble clic). Aparece TestPiloto.app.
-2. Movela a Aplicaciones (opcional) o dejala en cualquier carpeta.
-3. La app no esta firmada por Apple, por eso la primera vez hay que abrirla asi:
-   - Clic derecho (o Control + clic) sobre TestPiloto.app -> Abrir -> en el aviso, Abrir.
-   - En macOS 15 (Sequoia) o posterior ese boton puede no aparecer. En ese caso:
-     intenta abrirla con doble clic, cerra el aviso, anda a
-     Ajustes del Sistema -> Privacidad y seguridad, baja hasta el mensaje sobre
-     "TestPiloto" y toca "Abrir igualmente". Confirma con tu contrasena.
-4. Desde la segunda vez se abre con doble clic normal.
-
-Alternativa desde la Terminal (quita la marca de cuarentena de la descarga):
-    xattr -dr com.apple.quarantine /ruta/a/TestPiloto.app
-
-El build de macOS se compila en GitHub Actions para Mac con Apple Silicon (M1 o posterior).
-
 ABRIR LA APLICACION EN WINDOWS
 
 1. Descomprimi TestPiloto-windows.zip y ejecuta TestPiloto.exe con doble clic.
@@ -28,28 +11,91 @@ ABRIR LA APLICACION EN WINDOWS
 Si el antivirus lo bloquea, comproba que el archivo provenga de una fuente confiable
 (el Release del repositorio) antes de permitir su ejecucion. No desactives el antivirus.
 
-AUDIO
+ABRIR LA APLICACION EN macOS
 
-- Tarea A: "Reproducir ruido de fondo" reproduce en loop un ruido blanco (placeholder del
-  MSSN) hasta completar las 12 oraciones. Las oraciones siguen simuladas.
-- Anclajes y escenarios: fragmento musical (pop) en loop; en las condiciones "con ruido"
-  suena en paralelo un ruido de interior de tren. En los escenarios la musica arranca sola.
-- El slider ajusta solo el volumen de la musica, en 20 pasos (5 a 100) de 1.5 dB cada uno.
-- Al cambiar de pantalla o cerrar la app se detiene todo el audio.
+1. Descomprimi TestPiloto-macos.zip (doble clic). Aparece TestPiloto.app.
+2. La app no esta firmada por Apple. La primera vez: intenta abrirla con doble clic, cerra
+   el aviso, anda a Ajustes del Sistema -> Privacidad y seguridad, baja hasta el mensaje
+   sobre "TestPiloto" y toca "Abrir igualmente". Confirma con tu contrasena.
+3. Desde la segunda vez se abre con doble clic normal.
 
-Los clips estan en audio/clips/ y se generan con tools/recortar_audios.py a partir de los
-archivos originales de audio/. Los MP3 originales no se versionan en git (audio/*.mp3 esta
-en .gitignore): para regenerar los clips hay que copiarlos a audio/ a mano.
+Alternativa desde la Terminal (quita la marca de cuarentena de la descarga):
+    xattr -dr com.apple.quarantine /ruta/a/TestPiloto.app
 
-Para los ruidos ambientales (tren, avion y autopista) el script elige objetivamente el
-tramo de 30 s mas estable (menor L10 - L90, sin eventos con L_AFmax - L_Aeq > 6 dB) y los
-lleva a un mismo L_Aeq digital. El resultado queda en audio/clips/reporte_recorte.csv y en
-las figuras audio/clips/nivel_*.png. Los niveles son dBFS ponderados A, no dBA SPL: la
-calibracion de nivel se hace midiendo en el lugar del test.
+El build de macOS se compila en GitHub Actions para Mac con Apple Silicon (M1 o posterior).
+
+ARCHIVOS DE AUDIO (no van dentro del ejecutable ni en git)
+
+El programa busca la carpeta audio/ junto al ejecutable (en macOS, junto a TestPiloto.app;
+desde el codigo, junto a test.py). Si falta algun archivo, la pantalla de configuracion
+muestra cual y no deja iniciar la sesion. Tiene que haber:
+
+    audio/mssn/mssn_quicksin.wav                 MSSN (herramientas/generar_mssn.py)
+    audio/quicksin/voz/LISTA_N_oracion_M.wav     listas 1, 2 y 3, oraciones 1 a 6
+                                                 (herramientas/segmentar_quicksin.py)
+    audio/clips/ruido_autopista.ogg              ruido de trafico
+    audio/clips/ruido_avion.ogg                  ruido de cabina de avion
+    audio/musica/*_eq.wav                        exactamente 3 fragmentos ecualizados
+                                                 (herramientas/ecualizar_musica.py)
+
+Los nombres de la musica se leen de la carpeta: para reemplazar un fragmento alcanza con
+cambiar el archivo. Opcional: audio/quicksin/oraciones.csv con el texto y las 5 palabras
+clave de cada oracion (separadas por ;), para que el panel del experimentador las muestre.
+
+PANTALLA DE CONFIGURACION (experimentador)
+
+- Salida ruido ambiente (monitores): MSSN de la Tarea A, ruidos de trafico y avion y la
+  demostracion del ANC. Se preselecciona si encuentra "Scarlett" o "Focusrite".
+- Salida auriculares (voz y musica): oraciones y musica. Se preselecciona si encuentra
+  "Soundcore" o "Q30". El perfil manos libres del Bluetooth no aparece en la lista (es
+  mono a 16 kHz y degrada mucho el audio).
+- "Probar" reproduce 1 s de ruido rosa a -20 dBFS por esa salida.
+- La lista muestra los dispositivos como Windows (WASAPI) o macOS (Core Audio). "Mostrar
+  todas las APIs" muestra tambien MME, DirectSound y WDM-KS. "Actualizar dispositivos"
+  vuelve a leer la lista despues de conectar algo.
+- Ganancias en dB (MSSN, voz, trafico, avion) y nivel fijo de la musica en los anclajes.
+- Numero de participante: define todos los contrabalanceos.
+- Todo se guarda en config.json junto al ejecutable y se recarga en la proxima sesion.
+
+Si un dispositivo se desconecta durante la sesion, aparece un aviso arriba; reconectalo y
+toca "Reintentar". La sesion sigue donde estaba.
+
+CONTROL DEL ANC
+
+Por ahora el cambio de ANC es manual: cuando hay que cambiarlo, en el rincon inferior derecho
+aparece en letra chica "Experimentador: cambiar ANC a ON/OFF" y un boton "Hecho". No se
+puede avanzar desde una pantalla de pausa hasta confirmar el cambio. El participante no ve
+el estado del ANC en ninguna pantalla.
+
+ESTRUCTURA DE LA SESION
+
+Bienvenida, instrucciones, demostracion del ANC (trafico por los monitores con el ANC
+alternando), Tarea A (practica con la lista 3 y ANC OFF; despues las listas 1 y 2, una con
+cada estado del ANC, con el MSSN de fondo continuo) y tres bloques de musica (silencio,
+trafico y cabina de avion), cada uno con anclaje -> escenario -> CCR dos veces. Al final,
+las preguntas de fatiga e incomodidad.
+
+Contrabalanceos (k = numero de participante - 1): orden de bloques k mod 6; musica en
+cuadrado latino con rotacion (k + k div 6) mod 3; lista 1 con ANC OFF si (k + k div 6) es
+par; en la Tarea A va primero OFF si (k div 2 + k div 12) es par; en el primer bloque el
+primer escenario es OFF si (k div 3 + k div 12) es par y alterna en los bloques siguientes.
+Cada 12 participantes queda todo balanceado.
+
+DATOS
+
+Cada sesion escribe datos/participante_NNN_FECHA-HORA.csv junto al ejecutable, fila por fila
+(no se pierde lo registrado si el programa se cierra). Tipos de fila: sesion (dispositivos,
+ganancias y asignaciones), ensayo (Tarea A: lista, oracion, puntaje; Tareas B y C: paso
+inicial y final del slider, ganancia en dB, CCR de -3 a +3), anclaje, anc (cada cambio
+confirmado), evento (inicio y fin de cada parte) y cierre.
+
+Opcional: calibracion_niveles.csv junto al ejecutable, con columnas paso,laeq_dba (y
+fragmento, si la calibracion depende de la musica). Si esta, se completa la columna
+nivel_dba. El delta PLL se calcula en el analisis, no en el programa.
 
 EJECUTAR DESDE EL CODIGO
 
-Requiere Python 3 y pygame-ce:
+Requiere Python 3:
     pip install -r requirements.txt
 
 Windows:            py test.py
@@ -66,11 +112,11 @@ Manual en Windows: doble clic en build_windows.bat. Genera dist\TestPiloto.exe.
 Manual en macOS o Linux:
     chmod +x build_mac_linux.sh
     ./build_mac_linux.sh
-En macOS genera dist/TestPiloto.app; en Linux, dist/TestPiloto.
 
 PyInstaller genera el ejecutable solo para el sistema operativo donde se ejecuta el build.
+En todos los casos hay que copiar la carpeta audio/ junto al ejecutable.
 
-CONFIGURACION
+CONFIGURACION DEL CODIGO
 
-El nombre del test, los textos, el orden de los escenarios, los clips de audio, el nivel de
-los anclajes y el tamano del paso del slider se editan al principio de test.py.
+Los textos, la duracion de la demostracion, el paso del slider (PASO_DB) y las palabras para
+preseleccionar dispositivos se editan al principio de test.py.

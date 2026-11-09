@@ -9,7 +9,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo Instalando dependencias (pygame-ce y PyInstaller)...
+echo Instalando dependencias (sounddevice, soundfile, numpy, scipy y PyInstaller)...
 py -3 -m pip install -r requirements.txt pyinstaller
 if errorlevel 1 (
     echo No se pudieron instalar las dependencias.
@@ -17,8 +17,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-py -3 -m PyInstaller --noconfirm --onefile --windowed --name TestPiloto ^
-    --add-data "audio\clips;audio\clips" test.py
+py -3 -m PyInstaller --noconfirm --onefile --windowed --name TestPiloto test.py
 if errorlevel 1 (
     echo Fallo la generacion del ejecutable.
     pause
@@ -26,4 +25,5 @@ if errorlevel 1 (
 )
 
 echo Ejecutable generado en dist\TestPiloto.exe
+echo Copia la carpeta audio\ junto al .exe: el audio no va dentro del ejecutable.
 pause

@@ -8,7 +8,7 @@ if ! command -v "$PYTHON" >/dev/null 2>&1; then
     exit 1
 fi
 
-echo "Instalando dependencias (pygame-ce y PyInstaller)..."
+echo "Instalando dependencias (sounddevice, soundfile, numpy, scipy y PyInstaller)..."
 "$PYTHON" -m pip install -r requirements.txt pyinstaller
 
 # En macOS se genera dist/TestPiloto.app (--onedir: PyInstaller desaconseja
@@ -19,7 +19,8 @@ else
     MODO="--onefile"
 fi
 
-"$PYTHON" -m PyInstaller --noconfirm "$MODO" --windowed --name TestPiloto \
-    --add-data "audio/clips:audio/clips" test.py
+"$PYTHON" -m PyInstaller --noconfirm "$MODO" --windowed --name TestPiloto test.py
 
 echo "Build completado. Revisa la carpeta dist/ para encontrar el resultado."
+echo "El audio no va dentro del ejecutable: copia la carpeta audio/ junto al ejecutable"
+echo "(en macOS, junto a TestPiloto.app)."
