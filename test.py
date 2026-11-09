@@ -24,7 +24,7 @@ DURACION_MINUTOS = 25
 
 # Slider de nivel preferido: PASOS_SLIDER pasos de PASO_DB dB (el último paso = 0 dB).
 PASOS_SLIDER = 20
-PASO_DB = 1.5
+PASO_DB = 2.0  # rango: paso 1 = -38 dB ... paso 20 = 0 dB
 
 # Demostración del ANC: ruido de tráfico DEMO_ANC_S segundos; el ANC cambia cada DEMO_INTERVALO_S.
 DEMO_ANC_S = 21
@@ -1063,6 +1063,10 @@ class PsychoacousticPilot(tk.Tk):
 
     def _pantalla_escenario(self, body, paso):
         estado = self.escenario
+        if estado["confirmado"]:
+            # Después de OK desaparece todo lo del volumen y queda solo el CCR.
+            self._ccr(body, paso, habilitado=True)
+            return
         self._heading(body, TEXTOS["escenario_titulo"], 24)
         self._paragraph(body, TEXTOS["nivel_escucha"], 14)
 
@@ -1092,22 +1096,26 @@ class PsychoacousticPilot(tk.Tk):
         self.level_canvas.pack(side="right")
         self._dibujar_triangulo(estado["paso"])
 
-        ttk.Button(body, text=TEXTOS["ok"], style="Primary.TButton", command=self._confirmar_nivel,
-                   state="disabled" if estado["confirmado"] else "normal").pack(pady=(8, 6))
+        ttk.Button(body, text=TEXTOS["ok"], style="Primary.TButton", command=self._confirmar_nivel).pack(pady=(8, 6))
+        self._ccr(body, paso, habilitado=False)
 
-        habilitado = estado["confirmado"]
+    def _ccr(self, body, paso, habilitado):
+        """Escala de esfuerzo: en gris (bloqueada) antes de OK; después de OK, sola y más grande."""
         fondo = PANEL if habilitado else GRIS
+        escala = 1.4 if habilitado else 1.0
         ccr = tk.Frame(body, bg=fondo, highlightbackground=BORDES, highlightthickness=1, padx=8, pady=6)
-        ccr.pack(fill="x", padx=4)
+        ccr.pack(fill="x", padx=4, expand=habilitado)
         tk.Label(ccr, text=TEXTOS["esfuerzo"], bg=fondo, fg=TEXTO if habilitado else "#818987",
-                 font=self._font(12, "bold")).pack(pady=(0, 4))
+                 font=self._font(12 * escala, "bold"), wraplength=int(900 * self.scale_factor)).pack(
+                     pady=(10 if habilitado else 0, 8 if habilitado else 4))
         fila = tk.Frame(ccr, bg=fondo)
         fila.pack(fill="x")
         for texto, valor in OPCIONES_CCR:
-            tk.Button(fila, text=texto, wraplength=int(106 * self.scale_factor), width=12, height=3,
-                      font=self._font(9, "bold"), relief="solid", bd=1,
+            tk.Button(fila, text=texto, wraplength=int(106 * escala * self.scale_factor), width=12,
+                      height=4 if habilitado else 3, font=self._font(9 * escala, "bold"), relief="solid", bd=1,
                       bg=SUPERFICIE if habilitado else "#d9dddc", fg=TEXTO if habilitado else "#8a918f",
-                      disabledforeground="#8a918f", state="normal" if habilitado else "disabled",
+                      disabledforeground="#8a918f", activebackground=ACENTO_CLARO,
+                      state="normal" if habilitado else "disabled",
                       command=lambda t=texto, v=valor: self._elegir_ccr(paso, t, v)).pack(
                           side="left", fill="both", expand=True, padx=2)
 
