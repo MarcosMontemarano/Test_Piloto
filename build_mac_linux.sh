@@ -22,5 +22,6 @@ fi
 "$PYTHON" -m PyInstaller --noconfirm "$MODO" --windowed --name TestPiloto test.py
 
 echo "Build completado. Revisa la carpeta dist/ para encontrar el resultado."
-echo "El audio no va dentro del ejecutable: copia la carpeta audio/ junto al ejecutable"
+echo "El audio y los textos no van dentro del ejecutable: copia la carpeta audio/ y"
+echo "textos_participante.json junto al ejecutable"
 echo "(en macOS, junto a TestPiloto.app)."

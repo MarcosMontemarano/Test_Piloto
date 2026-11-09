@@ -25,5 +25,5 @@ if errorlevel 1 (
 )
 
 echo Ejecutable generado en dist\TestPiloto.exe
-echo Copia la carpeta audio\ junto al .exe: el audio no va dentro del ejecutable.
+echo Copia la carpeta audio\ y textos_participante.json junto al .exe: no van dentro del ejecutable.
 pause

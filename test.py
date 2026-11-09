@@ -15,10 +15,6 @@ from piloto import sesion as ses
 
 
 # Configuración editable
-NOMBRE_TEST = (
-    "Impacto de auriculares ANC en la percepción musical y comprensión de letras "
-    "en español rioplatense"
-)
 TITULO_VENTANA = "Piloto psicoacústico"
 DURACION_MINUTOS = 25
 
@@ -51,91 +47,18 @@ GANANCIA_AMBIENTE = {"trafico": "ganancia_trafico_db", "avion": "ganancia_avion_
 
 SECCIONES = ("bienvenida", "instrucciones", "demo_anc", "tarea_A", "bloque_1", "bloque_2",
              "bloque_3", "cierre")
-ETIQUETAS_STEPPER = ("Bienvenida", "Instrucciones", "Demostración", "Tarea A", "Parte 1",
-                     "Parte 2", "Parte 3", "Cierre")
 
+# Textos que ve el participante: textos_participante.json (junto al programa), que se lee al
+# iniciar y se suma a TEXTOS. Acá quedan solo los del experimentador.
 TEXTOS = {
-    "marca": "PILOTO PSICOACÚSTICO",
-    "bienvenida_subtitulo": "Test psicoacústico · sesión piloto",
-    "duracion": "Duración aproximada: {minutos} minutos",
-    "comenzar": "Comenzar",
-    "continuar": "Continuar",
-    "instrucciones_titulo": "Instrucciones",
-    "instrucciones": (
-        "El test tiene tres partes:\n\n"
-        "1. Una demostración breve de la cancelación de ruido de los auriculares.\n"
-        "2. Oraciones: vas a escuchar oraciones con ruido de fondo y tenés que repetir en voz alta "
-        "lo que entiendas.\n"
-        "3. Música: en distintos ambientes vas a elegir el volumen al que te gusta escuchar un "
-        "fragmento musical y a contar cuánto esfuerzo te costó escucharlo.\n\n"
-        "Durante todo el test usá los auriculares. Si algo no queda claro, preguntá."
-    ),
-    "demo_titulo": "Demostración de la cancelación de ruido",
-    "demo_texto": (
-        "Va a sonar ruido de tráfico por los parlantes durante unos {segundos} segundos. "
-        "Mientras tanto, la cancelación de ruido de los auriculares se va a activar y desactivar "
-        "varias veces: prestá atención a cómo cambia lo que escuchás."
-    ),
-    "demo_boton": "Comenzar demostración",
-    "demo_en_curso": "Demostración en curso… {segundos} s",
-    "demo_fin": "Fin de la demostración.",
-    "tarea_a_titulo": "Tarea A · Oraciones",
-    "tarea_a_instrucciones": (
-        "Vas a escuchar oraciones con un ruido de fondo. Después de cada una, repetí en voz alta "
-        "lo que hayas entendido, aunque sea una parte. Empezamos con unas oraciones de práctica."
-    ),
-    "practica": "Práctica",
-    "oracion": "Oración {numero} de {total}",
-    "escucha_oracion": "Escuchá con atención…",
     "panel_experimentador": "Panel del experimentador (no para el oyente)",
     "puntaje_ayuda": "Palabras clave acertadas (si corresponde, marcá antes el medio punto)",
     "medio_punto": "+ ½ (error menor de número o género)",
-    "tarea_a_fin": "Terminaste la tarea de oraciones. ¡Muy bien!",
-    "transicion_titulo": "Pausa breve",
-    "transicion_texto": "Esperá un momento: enseguida seguimos.",
-    "transicion_practica": "Primero, unas oraciones de práctica.",
-    "bloque_titulo": "Parte {numero} de 3",
-    "bloque_texto": (
-        "En esta parte vas a escuchar un fragmento musical, primero como referencia y después "
-        "para elegir el volumen. Se repite dos veces."
-    ),
-    "anclaje_titulo": "Escuchá la referencia",
-    "anclaje_texto": (
-        "Esta música es la referencia. Escuchala con atención: en la pantalla siguiente vas a "
-        "escuchar la misma música y vas a comparar cuánto esfuerzo te cuesta escucharla con "
-        "respecto a lo que estás escuchando ahora."
-    ),
-    "escenario_titulo": "Elegí el volumen",
-    "nivel_escucha": (
-        "Mové el control hasta el volumen al que te gustaría escuchar esta música. "
-        "Cuando estés conforme, tocá OK."
-    ),
-    "menor_volumen": "Menor volumen",
-    "mayor_volumen": "Mayor volumen",
-    "ok": "OK",
-    "esfuerzo": "Comparado con la referencia, escuchar la música ahora te costó…",
-    "cierre_titulo": "¡Muchas gracias por participar!",
-    "fatiga": "¿Sentiste fatiga auditiva durante el test?",
-    "comodidad": "¿Los auriculares te resultaron incómodos de colocar?",
-    "cierre_texto": "La sesión piloto ha finalizado. ¡Muchas gracias!",
-    "finalizar": "Finalizar",
-    "pantalla": "PANTALLA {actual:02d} / {total:02d}",
-    "anc_preparando": "Preparando la siguiente parte…",
     "anc_aviso_manual": "Experimentador: OpenSCQ30 falló ({error}). Cambiá el ANC a {estado} a mano y confirmá.",
     "anc_hecho_manual": "Listo, ANC en {estado}",
 }
-
-OPCIONES_CCR = (
-    ("Mucho más esfuerzo", -3),
-    ("Bastante más esfuerzo", -2),
-    ("Un poco más esfuerzo", -1),
-    ("Igual esfuerzo", 0),
-    ("Un poco más fácil", 1),
-    ("Bastante más fácil", 2),
-    ("Mucho más fácil", 3),
-)
-OPCIONES_FATIGA = ("Mucho", "Intermedio", "Poco")
-OPCIONES_COMODIDAD = ("Sí", "No", "Intermedio")
+# Valores internos del CCR, en el orden de "opciones_esfuerzo" del JSON.
+VALORES_CCR = (-3, -2, -1, 0, 1, 2, 3)
 PALABRAS_CLAVE = 5
 FUENTES_PREFERIDAS = ("Calibri", "Segoe UI", "Arial", "Helvetica", "DejaVu Sans")
 
@@ -185,6 +108,12 @@ class PsychoacousticPilot(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.close)
 
         self.base = ses.carpeta_base()
+        textos, error_textos = ses.cargar_textos(self.base)
+        if textos is None:
+            self.salidas, self.registro = {}, None
+            self._error_textos(error_textos)
+            return
+        TEXTOS.update({k: v for k, v in textos.items() if not k.startswith("_")})
         self.ruta_config = os.path.join(self.base, "config.json")
         self.cfg = ses.cargar_config(self.ruta_config)
         self.salidas = {zona: audio.Salida(zona) for zona in ZONAS}
@@ -223,6 +152,15 @@ class PsychoacousticPilot(tk.Tk):
         self.pantalla_config()
         self.after(500, self._vigilar_audio)
         self.after(100, self._revisar_resultados)
+
+    def _error_textos(self, mensaje):
+        marco = tk.Frame(self, bg=FONDO)
+        marco.pack(expand=True, fill="both", padx=40, pady=40)
+        tk.Label(marco, text="No se pudieron cargar los textos del participante", bg=FONDO, fg=ALERTA,
+                 font=self._font(18, "bold")).pack(pady=(0, 12))
+        tk.Label(marco, text=mensaje, bg=FONDO, fg=TEXTO, font=self._font(12), justify="left",
+                 wraplength=int(900 * self.scale_factor)).pack()
+        ttk.Button(marco, text="Cerrar", command=self.destroy).pack(pady=20)
 
     # ------------------------------------------------------------ ventana y estilos
 
@@ -279,7 +217,7 @@ class PsychoacousticPilot(tk.Tk):
         linea.pack(fill="x")
         tk.Label(linea, text=TEXTOS["marca"], bg=FONDO, fg=ACENTO_OSCURO,
                  font=self._font(10, "bold")).pack(side="left")
-        tk.Label(linea, text="{} minutos".format(DURACION_MINUTOS), bg=FONDO, fg=MUTED,
+        tk.Label(linea, text=TEXTOS["duracion_encabezado"].format(minutos=DURACION_MINUTOS), bg=FONDO, fg=MUTED,
                  font=self._font(11)).pack(side="right")
         self.progress_text = tk.Label(self.header, bg=FONDO, fg=TEXTO, font=self._font(11, "bold"), anchor="w")
         self.progress_text.pack(fill="x", pady=(10, 6))
@@ -732,7 +670,7 @@ class PsychoacousticPilot(tk.Tk):
         for child in self.stepper.winfo_children():
             child.destroy()
         actual = self.pasos[self.indice]["seccion"]
-        for i, etiqueta in enumerate(ETIQUETAS_STEPPER):
+        for i, etiqueta in enumerate(TEXTOS["etapas"]):
             segmento = tk.Frame(self.stepper, bg=FONDO)
             segmento.pack(side="left", fill="x", expand=True, padx=(0 if i == 0 else 4, 0))
             tk.Frame(segmento, bg=ACENTO if i <= actual else BORDES,
@@ -881,7 +819,7 @@ class PsychoacousticPilot(tk.Tk):
     # ------------------------------------------------------------ pantallas
 
     def _pantalla_bienvenida(self, body, _paso):
-        self._heading(body, NOMBRE_TEST, 34)
+        self._heading(body, TEXTOS["nombre_test"], 34)
         self._paragraph(body, TEXTOS["bienvenida_subtitulo"], 17)
         tk.Label(body, text=TEXTOS["duracion"].format(minutos=DURACION_MINUTOS), bg=SUPERFICIE, fg=MUTED,
                  font=self._font(13)).pack(pady=(4, 20))
@@ -938,7 +876,7 @@ class PsychoacousticPilot(tk.Tk):
         if self.demo["estado"] == "terminada":
             self.demo_label.configure(text=TEXTOS["demo_fin"])
         elif self.anc_pendiente is not None:
-            self.demo_label.configure(text=TEXTOS["anc_preparando"])
+            self.demo_label.configure(text=TEXTOS["preparando"])
         else:
             restante = max(0, DEMO_ANC_S - int(time.monotonic() - self.demo["inicio"]))
             self.demo_label.configure(text=TEXTOS["demo_en_curso"].format(segundos=restante))
@@ -958,7 +896,7 @@ class PsychoacousticPilot(tk.Tk):
         self._heading(body, TEXTOS["transicion_titulo"])
         if paso.get("practica"):
             self._paragraph(body, TEXTOS["transicion_practica"])
-        self._paragraph(body, TEXTOS["anc_preparando"])
+        self._paragraph(body, TEXTOS["preparando"])
 
     def _avanzar_transicion(self, indice):
         """La pausa avanza sola cuando el ANC quedó confirmado (y pasó el mínimo en pantalla)."""
@@ -1056,7 +994,7 @@ class PsychoacousticPilot(tk.Tk):
     def _pantalla_anclaje(self, body, _paso):
         self._heading(body, TEXTOS["anclaje_titulo"])
         self._paragraph(body, TEXTOS["anclaje_texto"])
-        tk.Label(body, text="♪  La música suena sola", bg=ACENTO_CLARO, fg=ACENTO_OSCURO,
+        tk.Label(body, text=TEXTOS["anclaje_musica"], bg=ACENTO_CLARO, fg=ACENTO_OSCURO,
                  font=self._font(12, "bold"), padx=12, pady=6).pack(pady=16)
 
     def _pantalla_escenario(self, body, paso):
@@ -1108,7 +1046,7 @@ class PsychoacousticPilot(tk.Tk):
                      pady=(10 if habilitado else 0, 8 if habilitado else 4))
         fila = tk.Frame(ccr, bg=fondo)
         fila.pack(fill="x")
-        for texto, valor in OPCIONES_CCR:
+        for texto, valor in zip(TEXTOS["opciones_esfuerzo"], VALORES_CCR):
             tk.Button(fila, text=texto, wraplength=int(106 * escala * self.scale_factor), width=12,
                       height=4 if habilitado else 3, font=self._font(9 * escala, "bold"), relief="solid", bd=1,
                       bg=SUPERFICIE if habilitado else "#d9dddc", fg=TEXTO if habilitado else "#8a918f",
@@ -1150,8 +1088,8 @@ class PsychoacousticPilot(tk.Tk):
         self._heading(body, TEXTOS["cierre_titulo"])
         encuesta = tk.Frame(body, bg=SUPERFICIE)
         encuesta.pack(pady=(4, 8))
-        for pregunta, opciones, var in ((TEXTOS["fatiga"], OPCIONES_FATIGA, self.fatiga),
-                                        (TEXTOS["comodidad"], OPCIONES_COMODIDAD, self.comodidad)):
+        for pregunta, opciones, var in ((TEXTOS["fatiga"], TEXTOS["opciones_fatiga"], self.fatiga),
+                                        (TEXTOS["comodidad"], TEXTOS["opciones_comodidad"], self.comodidad)):
             tk.Label(encuesta, text=pregunta, bg=SUPERFICIE, fg=TEXTO, font=self._font(13, "bold")).pack(pady=(6, 4))
             fila = tk.Frame(encuesta, bg=SUPERFICIE)
             fila.pack()
@@ -1212,7 +1150,7 @@ class PsychoacousticPilot(tk.Tk):
         self.close()
 
     def close(self):
-        if self.registro is not None:
+        if getattr(self, "registro", None) is not None:
             if not self.sesion_terminada:
                 self._fila("evento", campo="sesion_interrumpida", valor=SECCIONES[self.pasos[self.indice]["seccion"]])
             self.registro.cerrar()

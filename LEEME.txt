@@ -131,7 +131,16 @@ Manual en macOS o Linux:
 PyInstaller genera el ejecutable solo para el sistema operativo donde se ejecuta el build.
 En todos los casos hay que copiar la carpeta audio/ junto al ejecutable.
 
+TEXTOS DEL PARTICIPANTE
+
+Todo lo que ve el participante (instrucciones, demostracion, anclaje, pausas, escenarios,
+escala de esfuerzo y cierre) esta en textos_participante.json, junto al programa. Se lee al
+iniciar: para cambiar la redaccion alcanza con editar ese archivo (no hace falta recompilar).
+No cambies las claves ni lo que va entre llaves, como {minutos}. Si falta el archivo o una
+clave, el programa avisa cual y no arranca. Las opciones de esfuerzo se guardan en el CSV de
+-3 a +3 segun su posicion en la lista.
+
 CONFIGURACION DEL CODIGO
 
-Los textos, la duracion de la demostracion, el paso del slider (PASO_DB) y las palabras para
+La duracion de la demostracion, el paso del slider (PASO_DB) y las palabras para
 preseleccionar dispositivos se editan al principio de test.py.

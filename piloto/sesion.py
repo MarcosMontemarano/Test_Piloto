@@ -61,6 +61,54 @@ def guardar_config(ruta, config):
         json.dump(config, f, ensure_ascii=False, indent=2)
 
 
+# ---------------------------------------------------------------- textos del participante
+
+ARCHIVO_TEXTOS = "textos_participante.json"
+# clave -> cantidad de elementos si es una lista (None si es un texto)
+CLAVES_TEXTOS = {
+    "nombre_test": None, "marca": None, "duracion_encabezado": None, "pantalla": None, "etapas": 8,
+    "bienvenida_subtitulo": None, "duracion": None, "comenzar": None, "continuar": None,
+    "instrucciones_titulo": None, "instrucciones": None, "demo_titulo": None, "demo_texto": None,
+    "demo_boton": None, "demo_en_curso": None, "demo_fin": None, "demo_fin_explicacion": None,
+    "preparando": None, "tarea_a_titulo": None, "tarea_a_instrucciones": None, "transicion_titulo": None,
+    "transicion_practica": None, "practica": None, "oracion": None, "escucha_oracion": None,
+    "tarea_a_fin": None, "bloque_titulo": None, "bloque_texto": None, "anclaje_titulo": None,
+    "anclaje_texto": None, "anclaje_musica": None, "escenario_titulo": None, "nivel_escucha": None,
+    "menor_volumen": None, "mayor_volumen": None, "ok": None, "esfuerzo": None, "opciones_esfuerzo": 7,
+    "cierre_titulo": None, "fatiga": None, "opciones_fatiga": 3, "comodidad": None,
+    "opciones_comodidad": 3, "cierre_texto": None, "finalizar": None,
+}
+VALORES_PRUEBA = {"minutos": 25, "segundos": 21, "numero": 1, "total": 6, "actual": 1}
+
+
+def cargar_textos(base):
+    """Lee textos_participante.json. Devuelve (textos, None) o (None, descripción del problema)."""
+    ruta = os.path.join(base, ARCHIVO_TEXTOS)
+    try:
+        with open(ruta, encoding="utf-8-sig") as f:
+            textos = json.load(f)
+    except OSError:
+        return None, "No se encontró {} junto al programa ({}).".format(ARCHIVO_TEXTOS, base)
+    except ValueError as error:
+        return None, "{} tiene un error de formato: {}".format(ARCHIVO_TEXTOS, error)
+    problemas = []
+    for clave, cantidad in CLAVES_TEXTOS.items():
+        valor = textos.get(clave)
+        if cantidad is None:
+            if not isinstance(valor, str):
+                problemas.append("falta el texto \"{}\"".format(clave))
+                continue
+            try:
+                valor.format(**VALORES_PRUEBA)
+            except (KeyError, IndexError, ValueError) as error:
+                problemas.append("\"{}\": lo que va entre llaves no es válido ({})".format(clave, error))
+        elif not (isinstance(valor, list) and len(valor) == cantidad and all(isinstance(v, str) for v in valor)):
+            problemas.append("\"{}\" tiene que ser una lista de {} textos".format(clave, cantidad))
+    if problemas:
+        return None, "{}: {}.".format(ARCHIVO_TEXTOS, "; ".join(problemas))
+    return textos, None
+
+
 # ---------------------------------------------------------------- archivos de audio
 
 LISTAS_TAREA_A = (1, 2)

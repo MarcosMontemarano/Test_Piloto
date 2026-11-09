@@ -41,13 +41,13 @@ jobs:
           # ditto conserva los symlinks y permisos del bundle .app
           mkdir paquete
           ditto dist/TestPiloto.app paquete/TestPiloto.app
-          cp LEEME.txt paquete/
+          cp LEEME.txt textos_participante.json paquete/
           ditto -c -k --sequesterRsrc paquete dist/TestPiloto-macos.zip
 
       - name: Preparar paquete (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -Path dist/TestPiloto.exe, LEEME.txt -DestinationPath dist/TestPiloto-windows.zip
+        run: Compress-Archive -Path dist/TestPiloto.exe, LEEME.txt, textos_participante.json -DestinationPath dist/TestPiloto-windows.zip
 
       - uses: actions/upload-artifact@v4
         with:
