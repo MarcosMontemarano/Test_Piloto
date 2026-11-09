@@ -87,6 +87,71 @@ def enable_windows_dpi_awareness():
         pass
 
 
+CONTRASTE = "#e8590c"         # manija del slider (naranja, contrasta con el verde azulado)
+CONTRASTE_OSCURO = "#b8460a"
+
+
+class SliderGrande(tk.Canvas):
+    """Deslizador horizontal de 'pasos' posiciones con una manija grande y flechas ◀ ▶.
+
+    Se mueve arrastrando la manija, haciendo clic en la pista o con las flechas del teclado.
+    Llama a al_mover(paso) con pasos de 1 a 'pasos'. Debajo, la escala visible de 0 a 100.
+    """
+
+    def __init__(self, padre, pasos, inicial, al_mover, escala, fuente_manija, fuente_escala):
+        self.alto_manija = int(58 * escala)
+        self.ancho_manija = int(104 * escala)
+        super().__init__(padre, height=self.alto_manija + int(34 * escala), bg=SUPERFICIE,
+                         highlightthickness=0, cursor="sb_h_double_arrow", takefocus=1)
+        self.pasos, self.paso, self.al_mover, self.escala = pasos, inicial, al_mover, escala
+        self.fuente_manija, self.fuente_escala = fuente_manija, fuente_escala
+        self.bind("<Configure>", lambda _e: self._dibujar())
+        for evento in ("<Button-1>", "<B1-Motion>"):
+            self.bind(evento, self._mouse)
+        self.bind("<Left>", lambda _e: self._mover(self.paso - 1))
+        self.bind("<Right>", lambda _e: self._mover(self.paso + 1))
+
+    def _x(self, paso):
+        margen = self.ancho_manija / 2 + 4
+        return margen + (paso - 1) / (self.pasos - 1) * (self.winfo_width() - 2 * margen)
+
+    def _mouse(self, evento):
+        self.focus_set()
+        margen = self.ancho_manija / 2 + 4
+        fraccion = (evento.x - margen) / max(1, self.winfo_width() - 2 * margen)
+        self._mover(1 + round(fraccion * (self.pasos - 1)))
+
+    def _mover(self, paso):
+        paso = max(1, min(self.pasos, paso))
+        if paso != self.paso:
+            self.paso = paso
+            self._dibujar()
+            self.al_mover(paso)
+        return "break"
+
+    def _dibujar(self):
+        self.delete("all")
+        centro = self.alto_manija / 2 + 2
+        grosor = int(12 * self.escala)
+        x0, x1, x = self._x(1), self._x(self.pasos), self._x(self.paso)
+        self.create_line(x0, centro, x1, centro, fill=ACENTO_CLARO, width=grosor, capstyle="round")
+        self.create_line(x0, centro, x, centro, fill=ACENTO, width=grosor, capstyle="round")
+        for p in range(1, self.pasos + 1):
+            xp = self._x(p)
+            self.create_line(xp, centro + grosor, xp, centro + grosor + int(6 * self.escala), fill=BORDES)
+        base = self.alto_manija + int(8 * self.escala)
+        for valor in (0, 25, 50, 75, 100):
+            xv = x0 + valor / 100 * (x1 - x0)
+            self.create_text(xv, base, text=str(valor), fill=MUTED, font=self.fuente_escala, anchor="n")
+        a, h = self.ancho_manija / 2, self.alto_manija / 2
+        r = int(14 * self.escala)
+        puntos = [x - a + r, centro - h, x + a - r, centro - h, x + a, centro - h, x + a, centro - h + r,
+                  x + a, centro + h - r, x + a, centro + h, x + a - r, centro + h, x - a + r, centro + h,
+                  x - a, centro + h, x - a, centro + h - r, x - a, centro - h + r, x - a, centro - h]
+        self.create_polygon(puntos, smooth=True, fill=CONTRASTE, outline=CONTRASTE_OSCURO, width=3)
+        self.create_text(x, centro, text="◀  ▶", fill="white", font=self.fuente_manija)
+
+
 def paso_a_db(paso):
     return (paso - PASOS_SLIDER) * PASO_DB
 
@@ -1050,17 +1115,10 @@ class PsychoacousticPilot(tk.Tk):
         area.pack(fill="x", padx=8, pady=(6, 0))
         izquierda = tk.Frame(area, bg=SUPERFICIE)
         izquierda.pack(side="left", fill="x", expand=True, padx=(0, 8))
-        self.var_slider = tk.IntVar(value=estado["paso"])
-        tk.Scale(izquierda, from_=1, to=PASOS_SLIDER, orient="horizontal", resolution=1, showvalue=False,
-                 variable=self.var_slider, command=self._mover_slider, length=int(600 * self.scale_factor),
-                 sliderlength=28, width=22, troughcolor=ACENTO_CLARO, activebackground=ACENTO,
-                 highlightthickness=0, bg=SUPERFICIE, bd=0,
-                 state="disabled" if estado["confirmado"] else "normal").pack(fill="x")
-        escala = tk.Frame(izquierda, bg=SUPERFICIE)
-        escala.pack(fill="x")
-        for texto, lado in (("0", "left"), ("100", "right")):
-            tk.Label(escala, text=texto, bg=SUPERFICIE, fg=MUTED, font=self._font(10)).pack(side=lado)
-        tk.Label(escala, text="50", bg=SUPERFICIE, fg=MUTED, font=self._font(10)).pack()
+        self.slider = SliderGrande(izquierda, PASOS_SLIDER, estado["paso"], self._mover_slider,
+                                   self.scale_factor, self._font(15, "bold"), self._font(10))
+        self.slider.pack(fill="x")
+        self.slider.focus_set()
         extremos = tk.Frame(izquierda, bg=SUPERFICIE)
         extremos.pack(fill="x")
         tk.Label(extremos, text=TEXTOS["menor_volumen"], bg=SUPERFICIE, fg=MUTED,
@@ -1087,7 +1145,7 @@ class PsychoacousticPilot(tk.Tk):
         fila = tk.Frame(ccr, bg=fondo)
         fila.pack(fill="x")
         for texto, valor in zip(TEXTOS["opciones_esfuerzo"], VALORES_CCR):
-            tk.Button(fila, text=texto, wraplength=int(106 * escala * self.scale_factor), width=12,
+            tk.Button(fila, text=texto, wraplength=int((125 if habilitado else 106) * self.scale_factor), width=12,
                       height=4 if habilitado else 3, font=self._font(9 * escala, "bold"), relief="solid", bd=1,
                       bg=SUPERFICIE if habilitado else "#d9dddc", fg=TEXTO if habilitado else "#8a918f",
                       disabledforeground="#8a918f", activebackground=ACENTO_CLARO,
@@ -1095,8 +1153,9 @@ class PsychoacousticPilot(tk.Tk):
                       command=lambda t=texto, v=valor: self._elegir_ccr(paso, t, v)).pack(
                           side="left", fill="both", expand=True, padx=2)
 
-    def _mover_slider(self, valor):
-        paso = int(float(valor))
+    def _mover_slider(self, paso):
+        if paso == self.escenario["paso"]:
+            return
         self.escenario["paso"] = paso
         self.salidas["auriculares"].ganancia("musica", paso_a_db(paso))
         self._dibujar_triangulo(paso)
