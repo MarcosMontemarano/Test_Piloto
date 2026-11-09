@@ -82,12 +82,9 @@ TEXTOS = {
         "Vas a escuchar oraciones con un ruido de fondo. Después de cada una, repetí en voz alta "
         "lo que hayas entendido, aunque sea una parte. Empezamos con unas oraciones de práctica."
     ),
-    "ruido_fondo": "Reproducir ruido de fondo",
-    "ruido_persistente": "(el ruido de fondo queda sonando durante toda la tarea)",
-    "reproducido": "Ruido de fondo sonando",
     "practica": "Práctica",
     "oracion": "Oración {numero} de {total}",
-    "reproducir_oracion": "Reproducir oración",
+    "escucha_oracion": "Escuchá con atención…",
     "panel_experimentador": "Panel del experimentador (no para el oyente)",
     "puntaje_ayuda": "Palabras clave correctas (0,5 = error menor de número o género)",
     "tarea_a_fin": "Terminaste la tarea de oraciones. ¡Muy bien!",
@@ -250,8 +247,6 @@ class PsychoacousticPilot(tk.Tk):
         style.configure("Small.TButton", font=self._font(9), padding=self._scaled_pair(8, 3))
         style.configure("Primary.TButton", font=self._font(13, "bold"), padding=self._scaled_pair(22, 12))
         style.configure("Audio.TButton", font=self._font(16, "bold"), padding=self._scaled_pair(22, 15))
-        style.configure("Played.TButton", font=self._font(16, "bold"), padding=self._scaled_pair(22, 15),
-                        foreground=ACENTO_OSCURO)
 
     def _build_shell(self):
         pad = max(16, int(34 * self.scale_factor))
@@ -592,8 +587,6 @@ class PsychoacousticPilot(tk.Tk):
         tipo = paso["tipo"]
         if tipo == "transicion" or tipo == "bloque_inicio":
             return self.anc_pendiente is None
-        if tipo == "a_inicio":
-            return self.mssn_iniciado
         if tipo == "demo":
             return self.demo["estado"] == "terminada"
         if tipo in ("oracion", "escenario", "cierre"):
@@ -699,10 +692,15 @@ class PsychoacousticPilot(tk.Tk):
         if tipo == "transicion" or tipo == "bloque_inicio":
             if paso["anc"] != self.anc_actual:
                 self.cambiar_anc(paso["anc"], motivo=tipo)
+        elif tipo == "a_inicio":
+            self._iniciar_mssn()
         elif tipo == "a_fin":
             self.salidas["ruido"].detener("mssn")
+            self._fila("evento", tarea="A", campo="mssn", valor="fin")
         elif tipo == "oracion":
             self.reproducciones = 0
+            indice = self.indice
+            self.after(1000, lambda: self._reproducir_oracion(indice))
         elif tipo == "anclaje":
             self._reproducir("auriculares", self.ruta_fragmento[paso["musica"]],
                              self.cfg["nivel_anclaje_db"], loop=True, clave="musica")
@@ -782,23 +780,13 @@ class PsychoacousticPilot(tk.Tk):
     def _pantalla_a_inicio(self, body, _paso):
         self._heading(body, TEXTOS["tarea_a_titulo"], 24)
         self._paragraph(body, TEXTOS["tarea_a_instrucciones"])
-        boton = ttk.Button(body, text=TEXTOS["reproducido"] if self.mssn_iniciado else TEXTOS["ruido_fondo"],
-                           style="Played.TButton" if self.mssn_iniciado else "Audio.TButton",
-                           command=self._iniciar_mssn)
-        boton.pack(pady=(14, 4))
-        self._paragraph(body, TEXTOS["ruido_persistente"], 12)
 
     def _iniciar_mssn(self):
+        """El MSSN arranca solo al entrar a la Tarea A y suena hasta el final de la tarea."""
         if not self.mssn_iniciado:
-            try:
-                self._reproducir("ruido", self.rutas["mssn"], self.cfg["ganancia_mssn_db"], loop=True,
-                                 clave="mssn")
-            except ArchivoFaltante as falta:
-                self._detener_por_falta(str(falta))
-                return
+            self._reproducir("ruido", self.rutas["mssn"], self.cfg["ganancia_mssn_db"], loop=True, clave="mssn")
             self.mssn_iniciado = True
             self._fila("evento", tarea="A", campo="mssn", valor="inicio")
-        self.show_step()
 
     def _pantalla_transicion(self, body, paso):
         self._heading(body, TEXTOS["transicion_titulo"])
@@ -809,8 +797,8 @@ class PsychoacousticPilot(tk.Tk):
         self._heading(body, titulo, 22)
         tk.Label(body, text=TEXTOS["oracion"].format(numero=paso["oracion"], total=ses.ORACIONES_POR_LISTA),
                  bg=SUPERFICIE, fg=TEXTO, font=self._font(19, "bold")).pack(pady=(4, 6))
-        ttk.Button(body, text=TEXTOS["reproducir_oracion"], style="Audio.TButton",
-                   command=lambda: self._reproducir_oracion(paso)).pack(pady=(0, 10))
+        tk.Label(body, text=TEXTOS["escucha_oracion"], bg=SUPERFICIE, fg=MUTED, font=self._font(14)).pack(
+            pady=(0, 10))
 
         panel = tk.Frame(body, bg=PANEL, highlightbackground=BORDES, highlightthickness=1, padx=14, pady=8)
         panel.pack(fill="x", padx=20, pady=(4, 0))
@@ -844,16 +832,19 @@ class PsychoacousticPilot(tk.Tk):
                       relief="solid", bd=1, state="normal" if habilitado else "disabled",
                       command=lambda v=valor: self._puntuar(paso, v)).pack(side="left", padx=3)
 
-    def _reproducir_oracion(self, paso):
+    def _reproducir_oracion(self, indice):
+        """Reproduce una sola vez la oración de la pantalla 'indice', si todavía es la actual."""
+        if self.detenida or indice != self.indice or self.reproducciones > 0:
+            return
+        paso = self.pasos[indice]
         try:
             self._reproducir("auriculares", ses.ruta_oracion(self.base, paso["lista"], paso["oracion"]),
                              self.cfg["ganancia_voz_db"], clave="oracion", fundido=False)
         except ArchivoFaltante as falta:
             self._detener_por_falta(str(falta))
             return
-        self.reproducciones += 1
-        if self.reproducciones == 1:
-            self.show_step()
+        self.reproducciones = 1
+        self.show_step()
 
     def _puntuar(self, paso, valor):
         self._fila("ensayo", tarea="A", anc=self.anc_actual, anc_cambio="manual", lista=paso["lista"],
