@@ -2,3 +2,4 @@ sounddevice>=0.5
 soundfile>=0.12
 numpy
 scipy
+pycaw; sys_platform == "win32"

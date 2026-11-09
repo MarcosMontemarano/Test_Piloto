@@ -10,7 +10,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk
 
-from piloto import anc_control, audio
+from piloto import anc_control, audio, volumen
 from piloto import sesion as ses
 
 
@@ -413,6 +413,8 @@ class PsychoacousticPilot(tk.Tk):
 
         ttk.Button(self.footer, text="Iniciar sesión", style="Primary.TButton",
                    command=self._iniciar_sesion).pack(side="right")
+        self.confirmo_advertencias = False
+        self.after(2000, self._vigilar_volumen)
         self._refrescar_dispositivos(False)
 
     def _buscar_anc(self):
@@ -491,19 +493,50 @@ class PsychoacousticPilot(tk.Tk):
         self._verificar_mismo_dispositivo()
 
     def _abrir_zona(self, zona, d):
+        self.confirmo_advertencias = False
         try:
             self.salidas[zona].abrir(d)
-            self.estado_zona[zona].configure(
-                text="Abierta: {} · {} Hz · {}".format(d["api"], d["fs"], d["nombre"]), fg=MUTED)
+            self.estado_zona[zona].configure(fg=MUTED)
+            self._mostrar_estado_zona(zona)
         except Exception as error:
             self.salidas[zona].cerrar()
             self.estado_zona[zona].configure(text="No se pudo abrir: {}".format(error), fg=ALERTA)
 
+    def _mostrar_estado_zona(self, zona):
+        d = self.salidas[zona].dispositivo
+        if d is None or self.salidas[zona].stream is None:
+            return
+        self.estado_zona[zona].configure(text="Abierta: {} · {} Hz · {} canales · volumen de Windows: {}".format(
+            d["api"], d["fs"], d["canales"], volumen.describir(volumen.leer_volumen(d["nombre"]))))
+
+    def _advertencias_salidas(self):
+        """Advertencias de la configuración: mismo dispositivo, perfil manos libres, volumen de Windows."""
+        avisos = []
+        ruido, auriculares = (self.salidas[z].dispositivo for z in ("ruido", "auriculares"))
+        if ruido is not None and auriculares is not None and ruido["nombre"] == auriculares["nombre"]:
+            avisos.append("Elegiste el mismo dispositivo para el ruido ambiente y los auriculares.")
+        if auriculares is not None:
+            if volumen.es_manos_libres(auriculares):
+                avisos.append("Los auriculares están en el perfil Manos libres / Hands-Free ({} canal(es), {} Hz): "
+                              "elegí el perfil estéreo (\"Auriculares\").".format(auriculares["canales"], auriculares["fs"]))
+            vol = volumen.leer_volumen(auriculares["nombre"])
+            if vol is not None and (vol["porcentaje"] != 100 or vol["silenciado"]):
+                avisos.append("El volumen de Windows de los auriculares está en {}: ponelo al 100 %.".format(
+                    volumen.describir(vol)))
+        return avisos
+
     def _verificar_mismo_dispositivo(self):
-        a, b = (self.salidas[z].dispositivo for z in ZONAS)
-        mismo = a is not None and b is not None and a["nombre"] == b["nombre"]
-        self.aviso_dispositivos.configure(
-            text="Atención: elegiste el mismo dispositivo para el ruido ambiente y los auriculares." if mismo else "")
+        avisos = self._advertencias_salidas()
+        self.aviso_dispositivos.configure(text="\n".join("Atención: " + a for a in avisos))
+
+    def _vigilar_volumen(self):
+        """En la configuración, relee cada 2 s el volumen de Windows (puede cambiarse con las teclas)."""
+        if self.pasos or not (hasattr(self, "aviso_dispositivos") and self.aviso_dispositivos.winfo_exists()):
+            return
+        for zona in ZONAS:
+            self._mostrar_estado_zona(zona)
+        self._verificar_mismo_dispositivo()
+        self.after(2000, self._vigilar_volumen)
 
     def _probar(self, zona):
         salida = self.salidas[zona]
@@ -533,7 +566,14 @@ class PsychoacousticPilot(tk.Tk):
         if self.faltantes:
             errores.append("Faltan archivos de audio (ver la lista).")
         if errores:
-            self.error_config.configure(text="\n".join(errores))
+            self.error_config.configure(text="\n".join(errores), fg=ALERTA)
+            return
+        auriculares = self.salidas["auriculares"].dispositivo
+        if volumen.es_manos_libres(auriculares) and not self.confirmo_advertencias:
+            self.confirmo_advertencias = True
+            self.error_config.configure(text="Atención: los auriculares están en el perfil Manos libres. Elegí el "
+                                             "perfil estéreo, o tocá Iniciar sesión otra vez para seguir igual.",
+                                        fg=ALERTA)
             return
 
         self.cfg.update(ganancias)
@@ -618,7 +658,11 @@ class PsychoacousticPilot(tk.Tk):
         r.sesion("fecha", r.inicio.strftime("%Y-%m-%d %H:%M:%S"))
         for zona, (titulo, _c, _cl) in ZONAS.items():
             d = self.salidas[zona].dispositivo
-            r.sesion("dispositivo_" + zona, "{} [{}] {} Hz".format(d["nombre"], d["api"], d["fs"]))
+            r.sesion("dispositivo_" + zona, "{} [{}] {} Hz, {} canales".format(d["nombre"], d["api"], d["fs"], d["canales"]))
+            r.sesion("volumen_windows_" + zona, volumen.describir(volumen.leer_volumen(d["nombre"])))
+        auriculares = self.salidas["auriculares"].dispositivo
+        r.sesion("perfil_auriculares", "MANOS LIBRES" if volumen.es_manos_libres(auriculares) else "estereo")
+        r.sesion("microfono_auriculares", "no se abre (el programa solo usa salidas)")
         for clave, _t in GANANCIAS:
             r.sesion(clave, self.cfg[clave])
         r.sesion("orden_bloques", " > ".join(cb["orden_bloques"]))

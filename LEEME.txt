@@ -50,6 +50,12 @@ PANTALLA DE CONFIGURACION (experimentador)
   "Soundcore" o "Q30". El perfil manos libres del Bluetooth no aparece en la lista (es
   mono a 16 kHz y degrada mucho el audio).
 - "Probar" reproduce 1 s de ruido rosa a -20 dBFS por esa salida.
+- Debajo de cada salida se ve su volumen de Windows (en Windows, con pycaw; se relee cada 2 s).
+  Hay advertencia si el volumen de los auriculares no esta al 100 % o esta silenciado, y si los
+  auriculares estan en el perfil Manos libres / Hands-Free (mono a 16 kHz) en lugar del estereo.
+  Con Manos libres, "Iniciar sesion" pide un segundo clic para seguir igual. El volumen de cada
+  salida, el perfil de los auriculares y que el microfono no se abre quedan en el CSV.
+- El programa nunca abre el microfono de los auriculares: solo usa salidas de audio.
 - La lista muestra cada dispositivo una sola vez, con una unica API: WASAPI en Windows (los
   nombres de Configuracion de sonido, completos; anda con la Scarlett y con el Bluetooth) y
   Core Audio en macOS. Un dispositivo que Windows no tiene activo (por ejemplo, un jack sin
