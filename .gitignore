@@ -7,3 +7,7 @@ audio/*
 !audio/clips/
 # Resultados regenerables de las herramientas
 herramientas/salidas/
+# Configuración y datos de las sesiones (quedan junto al ejecutable)
+config.json
+datos/
+calibracion_niveles.csv
