@@ -1,6 +1,8 @@
 import ctypes
 import os
+import queue
 import random
+import threading
 import re
 import sys
 import time
@@ -8,7 +10,7 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk
 
-from piloto import audio
+from piloto import anc_control, audio
 from piloto import sesion as ses
 
 
@@ -25,12 +27,12 @@ PASOS_SLIDER = 20
 PASO_DB = 1.5
 
 # Demostración del ANC: ruido de tráfico DEMO_ANC_S segundos; el ANC cambia cada DEMO_INTERVALO_S.
-DEMO_ANC_S = 20
-DEMO_INTERVALO_S = 5
-DEMO_SECUENCIA = ("OFF", "ON", "OFF", "ON")
+DEMO_ANC_S = 21
+DEMO_INTERVALO_S = 7
+DEMO_SECUENCIA = ("OFF", "ON", "OFF")
 
-# "manual": cambiar_anc() le pide el cambio al experimentador. Más adelante, "openscq30".
-MODO_ANC = "manual"
+# Las pantallas de pausa avanzan solas cuando el ANC está confirmado, con este mínimo en pantalla.
+MIN_TRANSICION_S = 2.5
 
 CLAVES_MONITORES = ("scarlett", "focusrite")
 CLAVES_AURICULARES = ("soundcore", "q30")
@@ -118,8 +120,9 @@ TEXTOS = {
     "cierre_texto": "La sesión piloto ha finalizado. ¡Muchas gracias!",
     "finalizar": "Finalizar",
     "pantalla": "PANTALLA {actual:02d} / {total:02d}",
-    "anc_aviso": "Experimentador: cambiar ANC a {estado}",
-    "anc_hecho": "Hecho",
+    "anc_preparando": "Preparando la siguiente parte…",
+    "anc_aviso_manual": "Experimentador: OpenSCQ30 falló ({error}). Cambiá el ANC a {estado} a mano y confirmá.",
+    "anc_hecho_manual": "Listo, ANC en {estado}",
 }
 
 OPCIONES_CCR = (
@@ -193,6 +196,17 @@ class PsychoacousticPilot(tk.Tk):
         self.seccion_actual = None
         self.anc_actual = None
         self.anc_pendiente = None
+        self.anc_manual = False
+        self.anc_error = ""
+        self.anc_modo = ""
+        self.control_anc = None
+        self.control_cfg = None
+        self.anc_conectado = False
+        self.transicion_inicio = 0.0
+        # Un solo hilo ejecuta, en orden, todo lo que llama a la CLI de OpenSCQ30.
+        self.tareas = queue.Queue()
+        self.resultados = queue.Queue()
+        threading.Thread(target=self._trabajador, daemon=True).start()
         self.ambiente_actual = None
         self.mssn_iniciado = False
         self.demo = {"estado": "espera"}
@@ -208,6 +222,7 @@ class PsychoacousticPilot(tk.Tk):
         self._build_shell()
         self.pantalla_config()
         self.after(500, self._vigilar_audio)
+        self.after(100, self._revisar_resultados)
 
     # ------------------------------------------------------------ ventana y estilos
 
@@ -335,6 +350,17 @@ class PsychoacousticPilot(tk.Tk):
         self.aviso_dispositivos = tk.Label(body, bg=SUPERFICIE, fg=ALERTA, font=self._font(11, "bold"))
         self.aviso_dispositivos.pack(pady=(0, 4))
 
+        fila_anc = tk.Frame(body, bg=SUPERFICIE)
+        fila_anc.pack(fill="x", pady=(0, 4))
+        self.estado_anc = tk.Label(fila_anc, text="ANC: buscando OpenSCQ30…", bg=SUPERFICIE, fg=MUTED,
+                                   font=self._font(11, "bold"), anchor="w", justify="left",
+                                   wraplength=int(780 * self.scale_factor))
+        self.estado_anc.pack(side="left", fill="x", expand=True)
+        ttk.Button(fila_anc, text="Probar ANC", command=self._probar_anc).pack(side="right")
+        ttk.Button(fila_anc, text="Reconectar", style="Small.TButton",
+                   command=self._buscar_anc).pack(side="right", padx=8)
+        self._buscar_anc()
+
         ganancias = tk.Frame(body, bg=SUPERFICIE)
         ganancias.pack(pady=(4, 4))
         self.vars_ganancia = {}
@@ -366,6 +392,48 @@ class PsychoacousticPilot(tk.Tk):
         ttk.Button(self.footer, text="Iniciar sesión", style="Primary.TButton",
                    command=self._iniciar_sesion).pack(side="right")
         self._refrescar_dispositivos(False)
+
+    def _buscar_anc(self):
+        """Indicador de la configuración: ¿OpenSCQ30 llega a los auriculares?"""
+        cli = anc_control.buscar_cli(self.base, self.cfg.get("openscq30_cli") or None)
+        if not cli:
+            self.control_cfg = None
+            self.estado_anc.configure(text="ANC: no encontrado (falta la CLI de OpenSCQ30; ver LEEME)", fg=ALERTA)
+            return
+        self.control_cfg = anc_control.ControlANC(cli, self.cfg.get("anc_mac") or None)
+        self.estado_anc.configure(text="ANC: buscando los auriculares…", fg=MUTED)
+        control = self.control_cfg
+        self._en_hilo(lambda: (control._mac(), control.get_anc()), self._anc_encontrado)
+
+    def _anc_encontrado(self, resultado):
+        if not (hasattr(self, "estado_anc") and self.estado_anc.winfo_exists()):
+            return
+        if isinstance(resultado, Exception):
+            self.anc_conectado = False
+            self.estado_anc.configure(text="ANC: no encontrado — {}".format(resultado), fg=ALERTA)
+        else:
+            self.anc_conectado = True
+            self.estado_anc.configure(text="ANC: conectado · {} · modo actual {}".format(*resultado), fg=ACENTO_OSCURO)
+
+    def _probar_anc(self):
+        if self.control_cfg is None:
+            return
+        control = self.control_cfg
+        self.estado_anc.configure(text="ANC: probando ON → OFF…", fg=MUTED)
+        self._en_hilo(lambda: [control.set_anc("ON"), control.set_anc("OFF")], self._anc_probado)
+
+    def _anc_probado(self, resultado):
+        if not (hasattr(self, "estado_anc") and self.estado_anc.winfo_exists()):
+            return
+        if isinstance(resultado, Exception):
+            self.anc_conectado = False
+            self.estado_anc.configure(text="ANC: falló — {}".format(resultado), fg=ALERTA)
+            return
+        partes = ["{} {}".format(f["pedido"], "ok {:.1f} s".format(f["latencia_s"]) if f["ok"] else "FALLÓ: " + f["error"])
+                  for f in resultado]
+        self.anc_conectado = all(f["ok"] for f in resultado)
+        self.estado_anc.configure(text="ANC: prueba " + " · ".join(partes),
+                                  fg=ACENTO_OSCURO if self.anc_conectado else ALERTA)
 
     def _etiqueta(self, d):
         return "{}   [{}]".format(d["nombre"], d["api"]) if self.todas_apis.get() else d["nombre"]
@@ -479,7 +547,27 @@ class PsychoacousticPilot(tk.Tk):
             return
 
         self.registro = ses.Registro(self.base, participante)
+        control = self.control_cfg if getattr(self, "anc_conectado", False) else None
+        if control is None:
+            self._anc_listo(participante, None, None)
+            return
+        self.error_config.configure(text="Preparando el ANC…", fg=MUTED)
+        submodo = self.cfg.get("anc_submodo") or "Transport"
+        self._en_hilo(lambda: (control.fijar_submodo(submodo), control.get_anc()),
+                      lambda resultado: self._anc_listo(participante, control, resultado))
+
+    def _anc_listo(self, participante, control, resultado):
+        if control is not None and isinstance(resultado, Exception):
+            self.registro.sesion("anc_error_inicio", str(resultado))
+            control = None
+        self.control_anc = control
         self._registrar_sesion(participante)
+        if control is not None:
+            submodo, estado = resultado
+            self.anc_actual = estado if estado in ("ON", "OFF") else None
+            self.anc_modo = "automatico"
+            self.registro.sesion("anc_submodo", submodo)
+            self.registro.sesion("anc_estado_inicial", estado)
         self.pasos = self._armar_pasos()
         self.indice = 0
         self.show_step()
@@ -501,7 +589,10 @@ class PsychoacousticPilot(tk.Tk):
         r.sesion("tarea_A_lista_anc_OFF", cb["listas"]["OFF"])
         r.sesion("tarea_A_lista_anc_ON", cb["listas"]["ON"])
         r.sesion("tarea_A_lista_practica", ses.LISTA_PRACTICA)
-        r.sesion("modo_anc", MODO_ANC)
+        r.sesion("modo_anc", "openscq30" if self.control_anc else "manual (OpenSCQ30 no disponible)")
+        if self.control_anc:
+            r.sesion("openscq30_cli", self.control_anc.cli)
+            r.sesion("anc_mac", self.control_anc.mac)
         r.sesion("slider", "{} pasos de {:g} dB (paso {} = 0 dB)".format(PASOS_SLIDER, PASO_DB, PASOS_SLIDER))
         r.sesion("calibracion_niveles", "si" if self.calibracion(PASOS_SLIDER, "") is not None else "no")
 
@@ -535,33 +626,101 @@ class PsychoacousticPilot(tk.Tk):
 
     # ------------------------------------------------------------ ANC
 
+    def _trabajador(self):
+        while True:
+            funcion, al_terminar = self.tareas.get()
+            try:
+                resultado = funcion()
+            except Exception as error:
+                resultado = error
+            self.resultados.put((al_terminar, resultado))
+
+    def _en_hilo(self, funcion, al_terminar):
+        """Corre funcion() en el hilo de OpenSCQ30 y llama a al_terminar(resultado) en la interfaz."""
+        self.tareas.put((funcion, al_terminar))
+
+    def _revisar_resultados(self):
+        while True:
+            try:
+                al_terminar, resultado = self.resultados.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                al_terminar(resultado)
+            except tk.TclError:
+                pass
+        self.after(100, self._revisar_resultados)
+
     def cambiar_anc(self, estado, motivo=""):
-        """Único punto de cambio del ANC. Hoy le pide el cambio al experimentador; más adelante
-        va a llamar a OpenSCQ30 sin cambiar el resto del programa."""
-        if MODO_ANC != "manual":
-            raise NotImplementedError("Control automático del ANC todavía no integrado")
-        self.anc_pendiente = estado
-        self._fila("anc_solicitado", anc=estado, anc_cambio="manual", campo="motivo", valor=motivo)
+        """Único punto de cambio del ANC: lo cambia OpenSCQ30 (anc_control.set_anc) y lo verifica.
+
+        Mientras cambia, el participante ve solo un aviso genérico. Si OpenSCQ30 falla después del
+        reintento, se le pide el cambio al experimentador (letra chica, con confirmación) y se
+        registra como manual.
+        """
+        self.anc_pendiente, self.anc_manual, self.anc_error = estado, False, ""
+        self._fila("anc_solicitado", anc=estado, campo="motivo", valor=motivo)
+        if self.control_anc is None:
+            self._pedir_anc_manual(estado, "OpenSCQ30 no disponible")
+            return
+        self._en_hilo(lambda: self.control_anc.set_anc(estado),
+                      lambda resultado: self._anc_cambiado(estado, resultado))
         self._dibujar_aviso_anc()
+
+    def _anc_cambiado(self, estado, resultado):
+        if isinstance(resultado, Exception):
+            resultado = {"ok": False, "error": str(resultado), "leido": "", "latencia_s": "", "intentos": ""}
+        detalle = "leido={} latencia_s={} intentos={}".format(
+            resultado["leido"], resultado["latencia_s"], resultado["intentos"])
+        if resultado["ok"]:
+            self.anc_actual, self.anc_modo = estado, "automatico"
+            self._fila("anc", anc=estado, anc_cambio="automatico", campo="openscq30", valor=detalle)
+            if estado == self.anc_pendiente:
+                self.anc_pendiente = None
+        else:
+            self._fila("anc_falla", anc=estado, campo="openscq30", valor="{} error={}".format(detalle, resultado["error"]))
+            if estado == self.anc_pendiente:
+                self._pedir_anc_manual(estado, resultado["error"])
+                return
+        self._refrescar_tras_anc()
+
+    def _pedir_anc_manual(self, estado, error):
+        self.anc_pendiente, self.anc_manual, self.anc_error = estado, True, error
+        self._refrescar_tras_anc()
 
     def _confirmar_anc(self):
         if self.anc_pendiente is None:
             return
-        self.anc_actual, self.anc_pendiente = self.anc_pendiente, None
-        self._fila("anc", anc=self.anc_actual, anc_cambio="manual")
-        self._dibujar_footer()
+        self.anc_actual, self.anc_pendiente, self.anc_manual = self.anc_pendiente, None, False
+        self.anc_modo = "manual"
+        self._fila("anc", anc=self.anc_actual, anc_cambio="manual", campo="motivo", valor=self.anc_error)
+        self._refrescar_tras_anc()
+
+    def _refrescar_tras_anc(self):
+        if not self.pasos or self.detenida:
+            return
+        tipo = self.pasos[self.indice]["tipo"]
+        if tipo == "demo":
+            self._actualizar_demo_label()
+            self._dibujar_aviso_anc()
+        elif tipo in ("transicion", "bloque_inicio"):
+            self.show_step()
+        else:
+            self._dibujar_aviso_anc()
 
     def _dibujar_aviso_anc(self):
+        """Zona del experimentador (letra chica, rincón inferior): solo si hay que cambiar a mano."""
         if hasattr(self, "aviso_anc") and self.aviso_anc.winfo_exists():
             self.aviso_anc.destroy()
-        if self.anc_pendiente is None:
+        if not self.anc_manual or self.anc_pendiente is None:
             return
         self.aviso_anc = tk.Frame(self.footer, bg=FONDO)
         self.aviso_anc.pack(side="right", padx=(0, 16))
-        tk.Label(self.aviso_anc, text=TEXTOS["anc_aviso"].format(estado=self.anc_pendiente), bg=FONDO,
-                 fg=MUTED, font=self._font(8)).pack(side="left", padx=(0, 6))
-        ttk.Button(self.aviso_anc, text=TEXTOS["anc_hecho"], style="Small.TButton",
-                   command=self._confirmar_anc).pack(side="left")
+        tk.Label(self.aviso_anc, text=TEXTOS["anc_aviso_manual"].format(estado=self.anc_pendiente, error=self.anc_error),
+                 bg=FONDO, fg=MUTED, font=self._font(8), wraplength=int(520 * self.scale_factor),
+                 justify="right").pack(side="left", padx=(0, 6))
+        ttk.Button(self.aviso_anc, text=TEXTOS["anc_hecho_manual"].format(estado=self.anc_pendiente),
+                   style="Small.TButton", command=self._confirmar_anc).pack(side="left")
 
     # ------------------------------------------------------------ registro
 
@@ -608,7 +767,7 @@ class PsychoacousticPilot(tk.Tk):
             listo = bool(self.fatiga.get() and self.comodidad.get())
             ttk.Button(self.footer, text=TEXTOS["finalizar"], style="Primary.TButton", command=self.finalizar,
                        state="normal" if listo else "disabled").pack(side="right")
-        elif tipo not in ("oracion", "escenario"):
+        elif tipo not in ("oracion", "escenario", "transicion"):
             texto = TEXTOS["comenzar"] if tipo == "bienvenida" else TEXTOS["continuar"]
             ttk.Button(self.footer, text=texto, style="Primary.TButton", command=self.next_step,
                        state="normal" if self._puede_avanzar() else "disabled").pack(side="right")
@@ -692,8 +851,12 @@ class PsychoacousticPilot(tk.Tk):
         elif tipo == "cierre":
             self._poner_ambiente(None)
         if tipo == "transicion" or tipo == "bloque_inicio":
-            if paso["anc"] != self.anc_actual:
+            if paso["anc"] != self.anc_actual or self.anc_pendiente is not None:
                 self.cambiar_anc(paso["anc"], motivo=tipo)
+            if tipo == "transicion":
+                self.transicion_inicio = time.monotonic()
+                indice = self.indice
+                self.after(200, lambda: self._avanzar_transicion(indice))
         elif tipo == "a_inicio":
             self._iniciar_mssn()
         elif tipo == "a_fin":
@@ -760,7 +923,7 @@ class PsychoacousticPilot(tk.Tk):
                and transcurrido >= self.demo["cambios"] * DEMO_INTERVALO_S):
             self.cambiar_anc(DEMO_SECUENCIA[self.demo["cambios"]], motivo="demo")
             self.demo["cambios"] += 1
-        if transcurrido >= DEMO_ANC_S:
+        if transcurrido >= DEMO_ANC_S and self.anc_pendiente is None:
             self.demo["estado"] = "terminada"
             self.salidas["ruido"].detener("demo")
             self._fila("evento", campo="demo_anc", valor="fin")
@@ -776,6 +939,8 @@ class PsychoacousticPilot(tk.Tk):
             return
         if self.demo["estado"] == "terminada":
             self.demo_label.configure(text=TEXTOS["demo_fin"])
+        elif self.anc_pendiente is not None:
+            self.demo_label.configure(text=TEXTOS["anc_preparando"])
         else:
             restante = max(0, DEMO_ANC_S - int(time.monotonic() - self.demo["inicio"]))
             self.demo_label.configure(text=TEXTOS["demo_en_curso"].format(segundos=restante))
@@ -793,7 +958,19 @@ class PsychoacousticPilot(tk.Tk):
 
     def _pantalla_transicion(self, body, paso):
         self._heading(body, TEXTOS["transicion_titulo"])
-        self._paragraph(body, TEXTOS["transicion_practica"] if paso.get("practica") else TEXTOS["transicion_texto"])
+        if paso.get("practica"):
+            self._paragraph(body, TEXTOS["transicion_practica"])
+        self._paragraph(body, TEXTOS["anc_preparando"])
+
+    def _avanzar_transicion(self, indice):
+        """La pausa avanza sola cuando el ANC quedó confirmado (y pasó el mínimo en pantalla)."""
+        if self.detenida or indice != self.indice:
+            return
+        if self.anc_pendiente is None and time.monotonic() - self.transicion_inicio >= MIN_TRANSICION_S:
+            self.indice += 1
+            self.show_step()
+            return
+        self.after(200, lambda: self._avanzar_transicion(indice))
 
     def _pantalla_oracion(self, body, paso):
         titulo = TEXTOS["tarea_a_titulo"] + (" · " + TEXTOS["practica"] if paso["practica"] else "")
@@ -863,7 +1040,7 @@ class PsychoacousticPilot(tk.Tk):
         """Puntaje = palabras clave acertadas + ½ si se marcó el error menor (máximo 5)."""
         medio = bool(self.medio_punto.get())
         valor = min(PALABRAS_CLAVE, aciertos + (0.5 if medio else 0))
-        self._fila("ensayo", tarea="A", anc=self.anc_actual, anc_cambio="manual", lista=paso["lista"],
+        self._fila("ensayo", tarea="A", anc=self.anc_actual, anc_cambio=self.anc_modo, lista=paso["lista"],
                    oracion=paso["oracion"], practica="si" if paso["practica"] else "no",
                    puntaje=formato_puntaje(valor), reproducciones=self.reproducciones,
                    campo="aciertos+medio", valor="{}+{}".format(aciertos, "½" if medio else "0"))
@@ -956,7 +1133,7 @@ class PsychoacousticPilot(tk.Tk):
         final = self.escenario["paso"]
         nivel = self.calibracion(final, paso["musica"])
         self._fila("ensayo", tarea="BC", bloque=paso["bloque"], posicion_bloque=paso["posicion"],
-                   musica=paso["musica"], anc=self.anc_actual, anc_cambio="manual", paso_inicial=self.escenario["inicial"],
+                   musica=paso["musica"], anc=self.anc_actual, anc_cambio=self.anc_modo, paso_inicial=self.escenario["inicial"],
                    paso_final=final, ganancia_db="{:g}".format(paso_a_db(final)),
                    nivel_dba="" if nivel is None else "{:g}".format(nivel), ccr=valor, ccr_texto=texto,
                    campo="escenario", valor=paso["vez"])
@@ -995,6 +1172,7 @@ class PsychoacousticPilot(tk.Tk):
         elif self.banner.winfo_ismapped():
             self.banner.pack_forget()
         self.after(500, self._vigilar_audio)
+        self.after(100, self._revisar_resultados)
 
     def _reintentar_audio(self):
         for salida in self.salidas.values():

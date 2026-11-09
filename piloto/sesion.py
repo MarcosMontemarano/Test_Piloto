@@ -39,6 +39,10 @@ CONFIG_DEFECTO = {
     # Nivel fijo de la música en los anclajes. -15 dB es el paso 10 de 20 del slider.
     "nivel_anclaje_db": -15.0,
     "participante": 1,
+    # Control del ANC con OpenSCQ30 (vacío: se busca la CLI y la MAC solos).
+    "openscq30_cli": "",
+    "anc_mac": "",
+    "anc_submodo": "Transport",
 }
 
 

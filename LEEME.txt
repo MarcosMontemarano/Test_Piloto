@@ -60,12 +60,25 @@ PANTALLA DE CONFIGURACION (experimentador)
 Si un dispositivo se desconecta durante la sesion, aparece un aviso arriba; reconectalo y
 toca "Reintentar". La sesion sigue donde estaba.
 
-CONTROL DEL ANC
+CONTROL DEL ANC (OpenSCQ30)
 
-Por ahora el cambio de ANC es manual: cuando hay que cambiarlo, en el rincon inferior derecho
-aparece en letra chica "Experimentador: cambiar ANC a ON/OFF" y un boton "Hecho". No se
-puede avanzar desde una pantalla de pausa hasta confirmar el cambio. El participante no ve
-el estado del ANC en ninguna pantalla.
+El programa cambia el ANC solo, con la CLI de OpenSCQ30 (ON = NoiseCanceling, OFF = Normal).
+- La CLI (openscq30-cli-windows-x86_64.exe) se busca en: la ruta "openscq30_cli" de
+  config.json, herramientas/bin/, la carpeta del programa, el PATH y Descargas.
+- Los auriculares tienen que estar vinculados en OpenSCQ30 (openscq30 paired-devices list).
+- La app grafica de OpenSCQ30 tiene que estar CERRADA: los auriculares admiten una sola
+  conexion y, si esta abierta, la CLI no puede conectarse.
+- En la configuracion, "ANC: conectado / no encontrado" muestra si llega a los auriculares;
+  "Probar ANC" hace ON -> OFF y muestra la latencia. Al iniciar la sesion se fija el submodo de
+  cancelacion ("anc_submodo" en config.json, por defecto Transport) y se registra el estado.
+- Cada cambio se verifica leyendo el estado; si no coincide, se reintenta una vez. Mientras
+  cambia, el participante ve solo "Preparando la siguiente parte..." y la pausa avanza sola.
+- Si OpenSCQ30 falla, el programa no se cierra: en el rincon inferior derecho (letra chica)
+  le pide al experimentador el cambio manual con un boton de confirmacion, y lo registra como
+  manual. El participante no ve el estado del ANC en ninguna pantalla.
+
+Prueba de confiabilidad: python herramientas/prueba_anc.py (50 ciclos ON/OFF; CSV en
+herramientas/salidas/ con la latencia de cada cambio y los fallos).
 
 ESTRUCTURA DE LA SESION
 
