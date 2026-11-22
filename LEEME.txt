@@ -51,7 +51,8 @@ PANTALLA DE CONFIGURACION (experimentador)
   mono a 16 kHz y degrada mucho el audio).
 - "Probar" reproduce 1 s de ruido rosa a -20 dBFS por esa salida.
 - Debajo de cada salida se ve su volumen de Windows (en Windows, con pycaw; se relee cada 2 s).
-  Hay advertencia si el volumen de los auriculares no esta al 100 % o esta silenciado, y si los
+  Hay advertencia si la salida de monitores no es la Focusrite / Scarlett, si el volumen de
+  Windows de los monitores o de los auriculares no esta al 100 % o esta silenciado, y si los
   auriculares estan en el perfil Manos libres / Hands-Free (mono a 16 kHz) en lugar del estereo.
   Con Manos libres, "Iniciar sesion" pide un segundo clic para seguir igual. El volumen de cada
   salida, el perfil de los auriculares y que el microfono no se abre quedan en el CSV.
@@ -61,6 +62,11 @@ PANTALLA DE CONFIGURACION (experimentador)
   Core Audio en macOS. Un dispositivo que Windows no tiene activo (por ejemplo, un jack sin
   nada enchufado) no aparece. "Actualizar dispositivos" vuelve a leer la lista despues de
   conectar algo.
+- "Escuchar trafico" y "Escuchar cabina de avion" pasan 4 s de cada ruido por los monitores con
+  la ganancia escrita, para comprobar de oido que suenan antes de empezar.
+- Durante los bloques, abajo a la izquierda (letra chica, para el experimentador) se ve que
+  ruido suena, por que salida, con que ganancia y el nivel que el programa le esta mandando
+  (en rojo si no hay senal). Ese nivel queda en el CSV (ruido_ambiente_nivel_enviado_dbfs).
 - Ganancias en dB (MSSN, voz, trafico, avion) y nivel fijo de la musica en los anclajes.
 - Numero de participante: define todos los contrabalanceos.
 - Todo se guarda en config.json junto al ejecutable y se recarga en la proxima sesion.

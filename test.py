@@ -566,6 +566,13 @@ class PsychoacousticPilot(tk.Tk):
         ruido, auriculares = (self.salidas[z].dispositivo for z in ("ruido", "auriculares"))
         if ruido is not None and auriculares is not None and ruido["nombre"] == auriculares["nombre"]:
             avisos.append("Elegiste el mismo dispositivo para el ruido ambiente y los auriculares.")
+        if ruido is not None:
+            if not any(c in ruido["nombre"].lower() for c in CLAVES_MONITORES):
+                avisos.append("La salida de monitores no es la Focusrite / Scarlett ({}).".format(ruido["nombre"]))
+            vol = volumen.leer_volumen(ruido["nombre"])
+            if vol is not None and (vol["porcentaje"] != 100 or vol["silenciado"]):
+                avisos.append("El volumen de Windows de los monitores está en {}: ponelo al 100 %.".format(
+                    volumen.describir(vol)))
         if auriculares is not None:
             if volumen.es_manos_libres(auriculares):
                 avisos.append("Los auriculares están en el perfil Manos libres / Hands-Free ({} canal(es), {} Hz): "
@@ -735,6 +742,8 @@ class PsychoacousticPilot(tk.Tk):
         auriculares = self.salidas["auriculares"].dispositivo
         r.sesion("perfil_auriculares", "MANOS LIBRES" if volumen.es_manos_libres(auriculares) else "estereo")
         r.sesion("microfono_auriculares", "no se abre (el programa solo usa salidas)")
+        for aviso in self._advertencias_salidas():
+            r.sesion("advertencia_configuracion", aviso)
         for clave, _t in GANANCIAS:
             r.sesion(clave, self.cfg[clave])
         r.sesion("orden_bloques", " > ".join(cb["orden_bloques"]))
