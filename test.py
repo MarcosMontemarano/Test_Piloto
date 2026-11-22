@@ -47,6 +47,7 @@ GANANCIAS = (
     ("ganancia_voz_db", "Ganancia de la voz (Tarea A)"),
     ("ganancia_trafico_db", "Ganancia del ruido de tráfico"),
     ("ganancia_avion_db", "Ganancia del ruido de cabina de avión"),
+    ("ganancia_extra_demo_db", "Ganancia extra del ruido en la demostración"),
     ("nivel_anclaje_db", "Nivel fijo del anclaje (música)"),
 )
 GANANCIA_AMBIENTE = {"trafico": "ganancia_trafico_db", "avion": "ganancia_avion_db"}
@@ -1125,13 +1126,17 @@ class PsychoacousticPilot(tk.Tk):
 
     def _iniciar_demo(self):
         self.demo = {"estado": "en_curso", "inicio": time.monotonic(), "cambios": 0}
+        # Más fuerte que en el resto del test (ganancia del tráfico + extra), para que el ANC se note.
+        ganancia = self.cfg["ganancia_trafico_db"] + self.cfg["ganancia_extra_demo_db"]
         try:
-            self._reproducir("ruido", self.rutas["trafico"], self.cfg["ganancia_trafico_db"], loop=True,
-                             clave="demo")
+            self._reproducir("ruido", self.rutas["trafico"], ganancia, loop=True, clave="demo")
         except ArchivoFaltante as falta:
             self._detener_por_falta(str(falta))
             return
         self._fila("evento", campo="demo_anc", valor="inicio")
+        self._fila("evento", campo="demo_anc_ganancia_db", ganancia_db="{:g}".format(ganancia),
+                   valor="tráfico {:g} dB + extra {:g} dB".format(self.cfg["ganancia_trafico_db"],
+                                                                  self.cfg["ganancia_extra_demo_db"]))
         self.show_step()
         self._tic_demo()
 

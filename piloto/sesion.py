@@ -35,6 +35,8 @@ CONFIG_DEFECTO = {
     "ganancia_voz_db": 0.0,
     "ganancia_trafico_db": 0.0,
     "ganancia_avion_db": 0.0,
+    # Se suma a la ganancia del tráfico solo en la demostración del ANC, para que el efecto se note.
+    "ganancia_extra_demo_db": 6.0,
     # Nivel fijo de la música en los anclajes. -15 dB es el paso 10 de 20 del slider.
     "nivel_anclaje_db": -15.0,
     "participante": 1,

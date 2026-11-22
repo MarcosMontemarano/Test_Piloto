@@ -79,6 +79,9 @@ PANTALLA DE CONFIGURACION (experimentador)
   ruido suena, por que salida, con que ganancia y el nivel que el programa le esta mandando
   (en rojo si no hay senal). Ese nivel queda en el CSV (ruido_ambiente_nivel_enviado_dbfs).
 - Ganancias en dB (MSSN, voz, trafico, avion) y nivel fijo de la musica en los anclajes.
+- "Ganancia extra del ruido en la demostracion" (por defecto +6 dB): se suma a la del trafico
+  solo durante la demostracion del ANC, para que el efecto se note. Queda en el CSV
+  (ganancia_extra_demo_db y, al empezar la demostracion, demo_anc_ganancia_db).
 - Numero de participante: define todos los contrabalanceos.
 - Todo se guarda en config.json junto al ejecutable y se recarga en la proxima sesion.
 
