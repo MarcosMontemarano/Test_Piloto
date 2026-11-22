@@ -306,6 +306,8 @@ class Registro:
         self.escritor.writeheader()
 
     def fila(self, tipo, **campos):
+        if self.archivo.closed:
+            return
         campos = {k: v for k, v in campos.items() if v is not None}
         campos.update(momento=datetime.now().isoformat(timespec="milliseconds"), tipo=tipo,
                       prueba="si" if self.prueba else "no", codigo_sesion=self.codigo)
@@ -318,3 +320,43 @@ class Registro:
     def cerrar(self):
         if not self.archivo.closed:
             self.archivo.close()
+
+
+# ---------------------------------------------------------------- puntajes de la Tarea A (desde la planilla)
+
+def leer_sesion(ruta):
+    """Lo necesario para cargar puntajes en el CSV de una sesión ya guardada."""
+    with open(ruta, newline="", encoding="utf-8-sig") as f:
+        lector = csv.DictReader(f)
+        columnas, filas = lector.fieldnames, list(lector)
+    datos = {f["campo"]: f["valor"] for f in filas if f.get("tipo") == "sesion"}
+    anc_de_lista = {}
+    for estado in ("OFF", "ON"):
+        lista = datos.get("tarea_A_lista_anc_" + estado)
+        if lista:
+            anc_de_lista[int(lista)] = estado
+    puntajes = {}   # el último cargado de cada oración es el que vale
+    for f in filas:
+        if f.get("tipo") == "puntaje" and f.get("lista") and f.get("oracion"):
+            puntajes[(int(f["lista"]), int(f["oracion"]))] = f.get("palabras_correctas", "")
+    return {"columnas": columnas, "anc_de_lista": anc_de_lista, "puntajes": puntajes,
+            "codigo": datos.get("codigo_sesion", ""), "participante": datos.get("participante", ""),
+            "prueba": filas[-1].get("prueba", "no") if filas else "no"}
+
+
+def guardar_puntajes(ruta, puntajes, origen):
+    """Agrega al CSV de la sesión una fila 'puntaje' por oración: {(lista, oración): 0 a 5}.
+
+    origen: "fin de sesion" o "configuracion". Si una oración se vuelve a cargar, en el análisis
+    vale la última fila (columna momento).
+    """
+    info = leer_sesion(ruta)
+    with open(ruta, "a", newline="", encoding="utf-8") as f:
+        escritor = csv.DictWriter(f, fieldnames=info["columnas"], extrasaction="ignore")
+        for (lista, oracion), valor in sorted(puntajes.items()):
+            escritor.writerow({
+                "momento": datetime.now().isoformat(timespec="milliseconds"), "tipo": "puntaje",
+                "tarea": "A", "lista": lista, "oracion": oracion, "practica": "no",
+                "anc": info["anc_de_lista"].get(lista, ""), "palabras_correctas": valor,
+                "campo": "carga", "valor": origen, "prueba": info["prueba"],
+                "codigo_sesion": info["codigo"]})

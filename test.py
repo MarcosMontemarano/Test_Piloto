@@ -459,6 +459,15 @@ class PsychoacousticPilot(tk.Tk):
 
         ttk.Button(self.footer, text="Iniciar sesión", style="Primary.TButton",
                    command=self._iniciar_sesion).pack(side="right")
+        # Cargar después los puntajes de la planilla de una sesión ya hecha, por su código.
+        tk.Label(self.footer, text="Cargar puntajes de la sesión con código", bg=FONDO, fg=TEXTO,
+                 font=self._font(11)).pack(side="left")
+        self.var_codigo_carga = tk.StringVar()
+        entrada = ttk.Entry(self.footer, textvariable=self.var_codigo_carga, width=5, font=self._font(11))
+        entrada.pack(side="left", padx=6)
+        entrada.bind("<Return>", lambda _e: self._abrir_carga_puntajes())
+        ttk.Button(self.footer, text="Abrir", style="Small.TButton",
+                   command=self._abrir_carga_puntajes).pack(side="left")
         self.confirmo_advertencias = False
         self.after(2000, self._vigilar_volumen)
         self._refrescar_dispositivos(False)
@@ -1421,7 +1430,102 @@ class PsychoacousticPilot(tk.Tk):
         self._fila("evento", campo="fin", valor="cierre")
         self._fila("evento", campo="fin", valor="sesion")
         self.sesion_terminada = True
-        self.close()
+        self.detenida = True   # ya no se dibuja ninguna pantalla de la sesión
+        for salida in self.salidas.values():
+            salida.detener()
+        self.registro.cerrar()
+        # Después del cierre: pantalla del experimentador para cargar los puntajes de la planilla.
+        self.pantalla_puntajes(self.registro.ruta, "fin de sesion", self.close, "Saltear y cerrar")
+
+    # ------------------------------------------------------------ cargar puntajes (experimentador)
+
+    def _abrir_carga_puntajes(self):
+        codigo = self.var_codigo_carga.get().strip()
+        ruta = ses.sesiones_guardadas(self.base).get(codigo)
+        if ruta is None:
+            self.error_config.configure(text="No hay ninguna sesión con el código {} en {}.".format(
+                codigo or "(vacío)", os.path.join(self.base, ses.CARPETA_RESULTADOS)), fg=ALERTA)
+            return
+        self.pantalla_puntajes(ruta, "configuracion", self.pantalla_config, "Volver sin guardar")
+
+    def pantalla_puntajes(self, ruta, origen, al_terminar, texto_saltear):
+        """Una casilla (0 a 5) por oración de las listas 1 y 2, en el orden de la planilla."""
+        try:
+            info = ses.leer_sesion(ruta)
+        except (OSError, ValueError, KeyError) as error:
+            if hasattr(self, "error_config") and self.error_config.winfo_exists():
+                self.error_config.configure(text="No se pudo leer {}: {}".format(ruta, error), fg=ALERTA)
+            else:
+                al_terminar()
+            return
+        self._limpiar()
+        for child in self.stepper.winfo_children():
+            child.destroy()
+        self.progress_text.configure(text="CARGAR PUNTAJES · solo para el experimentador")
+        body = self._card()
+        self._heading(body, "Cargar puntajes", 24)
+        tk.Label(body, text="Código de sesión: {}".format(info["codigo"]), bg=ACENTO_CLARO, fg=ACENTO_OSCURO,
+                 font=self._font(26, "bold"), padx=20, pady=6).pack()
+        tk.Label(body, text="Participante {} · {}".format(info["participante"], os.path.basename(ruta)),
+                 bg=SUPERFICIE, fg=MUTED, font=self._font(10)).pack(pady=(4, 10))
+        grilla = tk.Frame(body, bg=SUPERFICIE)
+        grilla.pack()
+        self.vars_puntaje = {}
+        primera = None
+        for col, lista in enumerate(ses.LISTAS_TAREA_A):
+            tk.Label(grilla, text="Lista {}".format(lista), bg=SUPERFICIE, fg=TEXTO,
+                     font=self._font(15, "bold")).grid(row=0, column=col * 2, columnspan=2, pady=(0, 6),
+                                                         padx=int(30 * self.scale_factor))
+            for n in range(1, ses.ORACIONES_POR_LISTA + 1):
+                tk.Label(grilla, text="{}.".format(n), bg=SUPERFICIE, fg=TEXTO, font=self._font(14, "bold"),
+                         anchor="e").grid(row=n, column=col * 2, sticky="e", padx=(0, 8), pady=3)
+                var = tk.StringVar(value=info["puntajes"].get((lista, n), ""))
+                caja = ttk.Spinbox(grilla, from_=0, to=5, increment=1, width=4, textvariable=var,
+                                   font=self._font(14), justify="center")
+                caja.grid(row=n, column=col * 2 + 1, sticky="w", pady=3)
+                primera = primera or caja
+                self.vars_puntaje[(lista, n)] = var
+        tk.Label(body, text="Palabras clave correctas de 0 a 5. Lo que quede vacío no se guarda.",
+                 bg=SUPERFICIE, fg=MUTED, font=self._font(10)).pack(pady=(8, 0))
+        self.estado_puntajes = tk.Label(body, bg=SUPERFICIE, fg=ALERTA, font=self._font(12, "bold"))
+        self.estado_puntajes.pack(pady=(4, 0))
+        if primera is not None:
+            primera.focus_set()
+
+        ttk.Button(self.footer, text=texto_saltear, command=al_terminar).pack(side="left")
+        ttk.Button(self.footer, text="Guardar puntajes", style="Primary.TButton",
+                   command=lambda: self._guardar_puntajes(ruta, origen, al_terminar)).pack(side="right")
+
+    def _guardar_puntajes(self, ruta, origen, al_terminar):
+        puntajes, errores = {}, []
+        for (lista, n), var in self.vars_puntaje.items():
+            texto = var.get().strip()
+            if not texto:
+                continue
+            if texto.isdigit() and 0 <= int(texto) <= 5:
+                puntajes[(lista, n)] = int(texto)
+            else:
+                errores.append("Lista {} – oración {}".format(lista, n))
+        if errores:
+            self.estado_puntajes.configure(text="Tiene que ser un número de 0 a 5: " + ", ".join(errores), fg=ALERTA)
+            return
+        if not puntajes:
+            self.estado_puntajes.configure(text="No cargaste ningún puntaje.", fg=ALERTA)
+            return
+        try:
+            ses.guardar_puntajes(ruta, puntajes, origen)
+        except OSError as error:
+            self.estado_puntajes.configure(text="No se pudo guardar: {}".format(error), fg=ALERTA)
+            return
+        faltan = len(self.vars_puntaje) - len(puntajes)
+        self.estado_puntajes.configure(
+            text="Guardados {} puntajes en {}.{}".format(len(puntajes), os.path.basename(ruta),
+                                                         " Faltan {}.".format(faltan) if faltan else ""),
+            fg=ACENTO_OSCURO)
+        for child in self.footer.winfo_children():
+            child.destroy()
+        ttk.Button(self.footer, text="Cerrar" if origen == "fin de sesion" else "Volver a la configuración",
+                   style="Primary.TButton", command=al_terminar).pack(side="right")
 
     def close(self):
         if getattr(self, "registro", None) is not None:

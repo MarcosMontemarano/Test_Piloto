@@ -138,7 +138,18 @@ codigo_sesion. (Las sesiones viejas, de antes del codigo, quedaron en datos/.) T
 sesion (dispositivos, ganancias y asignaciones), ensayo (Tarea A: lista y oracion, sin puntaje:
 el puntaje se anota en la planilla y se carga despues; Tareas B y C: paso
 inicial y final del slider, ganancia en dB, CCR de -3 a +3), anclaje, anc (cada cambio
-confirmado), evento (inicio y fin de cada parte) y cierre.
+confirmado), evento (inicio y fin de cada parte), cierre y puntaje.
+
+CARGAR PUNTAJES DE LA TAREA A
+
+- Al tocar "Finalizar" en el cierre aparece "Cargar puntajes" (solo para el experimentador): el
+  codigo de sesion arriba y una casilla de 0 a 5 por oracion de las listas 1 y 2, en el mismo
+  orden que la planilla. "Saltear y cerrar" la deja para despues.
+- Para cargarlos despues: en la configuracion, abajo a la izquierda, escribi el codigo de la
+  sesion y toca "Abrir". Se ven los puntajes ya cargados; lo que quede vacio no se guarda.
+- Cada puntaje se agrega al CSV de esa sesion como fila "puntaje" (lista, oracion, anc de esa
+  lista, palabras_correctas y valor = "fin de sesion" o "configuracion"). Si una oracion se carga
+  dos veces, vale la ultima (columna momento).
 
 Opcional: calibracion_niveles.csv junto al ejecutable, con columnas paso,laeq_dba (y
 fragmento, si la calibracion depende de la musica). Si esta, se completa la columna
