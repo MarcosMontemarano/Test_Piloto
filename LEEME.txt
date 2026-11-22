@@ -40,7 +40,18 @@ muestra cual y no deja iniciar la sesion. Tiene que haber:
 
 Los nombres de la musica se leen de la carpeta: para reemplazar un fragmento alcanza con
 cambiar el archivo. Opcional: audio/quicksin/oraciones.csv con el texto y las 5 palabras
-clave de cada oracion (separadas por ;), para que el panel del experimentador las muestre.
+clave de cada oracion (separadas por |), para que el panel del experimentador las muestre.
+
+PLANILLA IMPRIMIBLE DE LA TAREA A
+
+    python herramientas/hoja_experimentador.py
+
+genera herramientas/salidas/planilla_oraciones.pdf: una sola planilla A4, igual para todos los
+participantes (se imprime una vez y se fotocopia). Tiene "Participante N.o" y "Fecha", las listas
+1, 2 y 3 (familiarizacion) en el orden original, cada oracion con las 5 palabras clave en negrita
+y un recuadro "__ / 5". No dice el estado del ANC ni el orden de la sesion. Sale de
+audio/quicksin/oraciones.csv; si alguna oracion esta "provisorio", lleva la marca PROVISORIO al
+pie. Con --salida se elige otra ruta.
 
 PANTALLA DE CONFIGURACION (experimentador)
 

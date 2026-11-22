@@ -170,6 +170,21 @@ def cargar_oraciones(base):
     return oraciones
 
 
+def posiciones_claves(texto, claves):
+    """[(inicio, fin)] de cada palabra clave en el texto.
+
+    Cada palabra se busca en orden a partir de la anterior: una palabra repetida o funcional
+    (p. ej., "tener ... tener", "los") se marca solo donde corresponde.
+    """
+    posiciones, desde = [], 0
+    for palabra in claves:
+        m = re.compile(r"\b{}\b".format(re.escape(palabra)), re.IGNORECASE).search(texto, desde)
+        if m:
+            posiciones.append((m.start(), m.end()))
+            desde = m.end()
+    return posiciones
+
+
 # ---------------------------------------------------------------- contrabalanceos
 
 BLOQUES = ("silencio", "trafico", "avion")

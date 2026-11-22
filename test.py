@@ -1215,14 +1215,8 @@ class PsychoacousticPilot(tk.Tk):
             caja.tag_configure("clave", font=self._font(17, "bold"), foreground=ACENTO_OSCURO, underline=True)
             caja.tag_configure("centro", justify="center")
             caja.tag_add("centro", "1.0", "end")
-            # Cada palabra clave se marca en orden, a partir de la anterior (así una palabra
-            # repetida o funcional se resalta solo donde corresponde).
-            desde = 0
-            for palabra in claves:
-                m = re.compile(r"\b{}\b".format(re.escape(palabra)), re.IGNORECASE).search(texto, desde)
-                if m:
-                    caja.tag_add("clave", "1.0+{}c".format(m.start()), "1.0+{}c".format(m.end()))
-                    desde = m.end()
+            for inicio, fin in ses.posiciones_claves(texto, claves):
+                caja.tag_add("clave", "1.0+{}c".format(inicio), "1.0+{}c".format(fin))
             caja.configure(state="disabled")
             caja.pack(fill="x", pady=(4, 0))
             tk.Label(panel, text=rotulo + (" · claves provisorias" if estado == "provisorio" else ""),
