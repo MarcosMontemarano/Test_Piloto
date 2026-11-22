@@ -152,7 +152,9 @@ TEXTOS DEL PARTICIPANTE
 Todo lo que ve el participante (instrucciones, demostracion, anclaje, pausas, escenarios,
 escala de esfuerzo y cierre) esta en textos_participante.json, junto al programa. Se lee al
 iniciar: para cambiar la redaccion alcanza con editar ese archivo (no hace falta recompilar).
-No cambies las claves ni lo que va entre llaves, como {minutos}. Si falta el archivo o una
+No cambies las claves ni lo que va entre llaves, como {minutos}. En las pantallas de explicacion
+(letra mas grande que el resto), lo que va entre **dos asteriscos** sale en negrita. El
+primer anclaje de cada bloque usa "anclaje_texto" y el segundo, "anclaje_texto_repeticion". Si falta el archivo o una
 clave, el programa avisa cual y no arranca. Las opciones de esfuerzo se guardan en el CSV de
 -3 a +3 segun su posicion en la lista.
 

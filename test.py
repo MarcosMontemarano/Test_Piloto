@@ -73,7 +73,9 @@ TEXTOS = {
 # Valores internos del CCR, en el orden de "opciones_esfuerzo" del JSON.
 VALORES_CCR = (-3, -2, -1, 0, 1, 2, 3)
 PALABRAS_CLAVE = 5
-FUENTES_PREFERIDAS = ("Calibri", "Segoe UI", "Arial", "Helvetica", "DejaVu Sans")
+# Tamaño de los textos de explicación para el participante (más grande que el resto de la interfaz).
+TAM_EXPLICACION = 21
+FUENTES_PREFERIDAS =("Calibri", "Segoe UI", "Arial", "Helvetica", "DejaVu Sans")
 
 FONDO = "#f3f6f5"
 SUPERFICIE = "#ffffff"
@@ -307,10 +309,11 @@ class PsychoacousticPilot(tk.Tk):
         self.stepper = tk.Frame(self.header, bg=FONDO)
         self.stepper.pack(fill="x")
 
+        # El pie se empaqueta antes que el contenido: así un texto largo nunca tapa el botón de avanzar.
+        self.footer = tk.Frame(self, bg=FONDO)
+        self.footer.pack(side="bottom", fill="x", padx=pad, pady=(3, max(10, int(18 * self.scale_factor))))
         self.content = tk.Frame(self, bg=FONDO)
         self.content.pack(fill="both", expand=True, padx=pad, pady=(10, 6))
-        self.footer = tk.Frame(self, bg=FONDO)
-        self.footer.pack(fill="x", padx=pad, pady=(3, max(10, int(18 * self.scale_factor))))
 
     def _limpiar(self):
         for frame in (self.content, self.footer):
@@ -334,6 +337,33 @@ class PsychoacousticPilot(tk.Tk):
         tk.Label(parent, text=text, bg=SUPERFICIE, fg=MUTED, font=self._font(size),
                  wraplength=int(860 * self.scale_factor), justify=justify).pack(
                      pady=max(3, int(5 * self.scale_factor)))
+
+    def _explicacion(self, parent, texto, size=TAM_EXPLICACION, justify="center", bg=SUPERFICIE, ancho=880):
+        """Texto para el participante, más grande que el resto; lo que va entre ** ** sale en negrita."""
+        fuente = self._font(size)
+        ancho_px = int(ancho * self.scale_factor)
+        caja = tk.Text(parent, wrap="word", bg=bg, fg=TEXTO, relief="flat", bd=0, highlightthickness=0,
+                       font=fuente, cursor="arrow", height=1,
+                       width=max(20, ancho_px // max(1, tkfont.Font(self, font=fuente).measure("0"))),
+                       spacing1=int(3 * self.scale_factor), spacing3=int(3 * self.scale_factor))
+        caja.tag_configure("parrafo", justify=justify)
+        caja.tag_configure("negrita", font=self._font(size, "bold"))
+        for i, parte in enumerate(re.split(r"\*\*(.+?)\*\*", texto, flags=re.S)):
+            caja.insert("end", parte, ("parrafo", "negrita") if i % 2 else ("parrafo",))
+        caja.configure(state="disabled")
+        caja.pack(pady=max(4, int(8 * self.scale_factor)))
+
+        def ajustar_alto():
+            if not caja.winfo_exists():
+                return
+            lineas = caja.count("1.0", "end", "displaylines")
+            lineas = lineas[0] if isinstance(lineas, tuple) else lineas
+            if lineas:
+                caja.configure(height=lineas)
+        caja.update_idletasks()
+        ajustar_alto()
+        caja.after_idle(ajustar_alto)
+        return caja
 
     # ------------------------------------------------------------ configuración (experimentador)
 
@@ -1062,16 +1092,16 @@ class PsychoacousticPilot(tk.Tk):
 
     def _pantalla_instrucciones(self, body, _paso):
         self._heading(body, TEXTOS["instrucciones_titulo"])
-        self._paragraph(body, TEXTOS["instrucciones"], 16, justify="left")
+        self._explicacion(body, TEXTOS["instrucciones"], justify="left", ancho=820)
 
     def _pantalla_demo(self, body, _paso):
         if self.demo["estado"] == "terminada":
             # Al terminar se ve solo el cierre de la demostración, sin el texto anterior.
             self._heading(body, TEXTOS["demo_fin"])
-            self._paragraph(body, TEXTOS["demo_fin_explicacion"])
+            self._explicacion(body, TEXTOS["demo_fin_explicacion"])
             return
         self._heading(body, TEXTOS["demo_titulo"])
-        self._paragraph(body, TEXTOS["demo_texto"].format(segundos=DEMO_ANC_S))
+        self._explicacion(body, TEXTOS["demo_texto"].format(segundos=DEMO_ANC_S))
         if self.demo["estado"] == "espera":
             ttk.Button(body, text=TEXTOS["demo_boton"], style="Audio.TButton",
                        command=self._iniciar_demo).pack(pady=18)
@@ -1124,7 +1154,7 @@ class PsychoacousticPilot(tk.Tk):
 
     def _pantalla_a_inicio(self, body, _paso):
         self._heading(body, TEXTOS["tarea_a_titulo"], 24)
-        self._paragraph(body, TEXTOS["tarea_a_instrucciones"])
+        self._explicacion(body, TEXTOS["tarea_a_instrucciones"])
 
     def _iniciar_mssn(self):
         """El MSSN arranca solo al entrar a la Tarea A y suena hasta el final de la tarea."""
@@ -1136,8 +1166,8 @@ class PsychoacousticPilot(tk.Tk):
     def _pantalla_transicion(self, body, paso):
         self._heading(body, TEXTOS["transicion_titulo"])
         if paso.get("practica"):
-            self._paragraph(body, TEXTOS["transicion_practica"])
-        self._paragraph(body, TEXTOS["preparando"])
+            self._explicacion(body, TEXTOS["transicion_practica"])
+        self._explicacion(body, TEXTOS["preparando"])
 
     def _avanzar_transicion(self, indice):
         """La pausa avanza sola cuando el ANC quedó confirmado (y pasó el mínimo en pantalla)."""
@@ -1263,15 +1293,16 @@ class PsychoacousticPilot(tk.Tk):
 
     def _pantalla_a_fin(self, body, _paso):
         self._heading(body, TEXTOS["tarea_a_titulo"])
-        self._paragraph(body, TEXTOS["tarea_a_fin"])
+        self._explicacion(body, TEXTOS["tarea_a_fin"])
 
     def _pantalla_bloque_inicio(self, body, paso):
         self._heading(body, TEXTOS["bloque_titulo"].format(numero=paso["posicion"]))
-        self._paragraph(body, TEXTOS["bloque_texto"])
+        self._explicacion(body, TEXTOS["bloque_texto"])
 
-    def _pantalla_anclaje(self, body, _paso):
+    def _pantalla_anclaje(self, body, paso):
         self._heading(body, TEXTOS["anclaje_titulo"])
-        self._paragraph(body, TEXTOS["anclaje_texto"])
+        # Primer anclaje del bloque: la consigna; segundo: una sola frase, sin repetirla.
+        self._explicacion(body, TEXTOS["anclaje_texto"] if paso["vez"] == 1 else TEXTOS["anclaje_texto_repeticion"])
         tk.Label(body, text=TEXTOS["anclaje_musica"], bg=ACENTO_CLARO, fg=ACENTO_OSCURO,
                  font=self._font(12, "bold"), padx=12, pady=6).pack(pady=16)
 
@@ -1282,7 +1313,7 @@ class PsychoacousticPilot(tk.Tk):
             self._ccr(body, paso, habilitado=True)
             return
         self._heading(body, TEXTOS["escenario_titulo"], 24)
-        self._paragraph(body, TEXTOS["nivel_escucha"], 14)
+        self._explicacion(body, TEXTOS["nivel_escucha"])
 
         area = tk.Frame(body, bg=SUPERFICIE)
         area.pack(fill="x", padx=8, pady=(6, 0))
@@ -1368,7 +1399,7 @@ class PsychoacousticPilot(tk.Tk):
             for opcion in opciones:
                 ttk.Radiobutton(fila, text=opcion, value=opcion, variable=var,
                                 command=self._dibujar_footer).pack(side="left", padx=10)
-        self._paragraph(body, TEXTOS["cierre_texto"], 15)
+        self._explicacion(body, TEXTOS["cierre_texto"])
 
     # ------------------------------------------------------------ audio: cortes de dispositivo
 
