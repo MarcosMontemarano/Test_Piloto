@@ -106,7 +106,8 @@ DATOS
 
 Cada sesion escribe datos/participante_NNN_FECHA-HORA.csv junto al ejecutable, fila por fila
 (no se pierde lo registrado si el programa se cierra). Tipos de fila: sesion (dispositivos,
-ganancias y asignaciones), ensayo (Tarea A: lista, oracion, puntaje; Tareas B y C: paso
+ganancias y asignaciones), ensayo (Tarea A: lista, oracion, correctas, error_menor y puntaje = correctas + 0,5 x
+error_menor, maximo 5; Tareas B y C: paso
 inicial y final del slider, ganancia en dB, CCR de -3 a +3), anclaje, anc (cada cambio
 confirmado), evento (inicio y fin de cada parte) y cierre.
 

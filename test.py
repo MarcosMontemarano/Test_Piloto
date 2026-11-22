@@ -62,8 +62,11 @@ SECCIONES = ("bienvenida", "instrucciones", "demo_anc", "tarea_A", "bloque_1", "
 # iniciar y se suma a TEXTOS. Acá quedan solo los del experimentador.
 TEXTOS = {
     "panel_experimentador": "Panel del experimentador (no para el oyente)",
-    "puntaje_ayuda": "Palabras clave acertadas (si corresponde, marcá antes el medio punto)",
-    "medio_punto": "+ ½ (error menor de número o género)",
+    "puntaje_correctas": "Palabras correctas",
+    "puntaje_menor": "Palabras con error menor\n(número o género)",
+    "puntaje_oracion": "Puntaje: {puntaje} / 5",
+    "puntaje_pendiente": "Marcá las palabras correctas",
+    "puntaje_confirmar": "Registrar y seguir",
     "anc_aviso_manual": "Experimentador: OpenSCQ30 falló ({error}). Cambiá el ANC a {estado} a mano y confirmá.",
     "anc_hecho_manual": "Listo, ANC en {estado}",
 }
@@ -220,7 +223,7 @@ class PsychoacousticPilot(tk.Tk):
         self.mssn_iniciado = False
         self.demo = {"estado": "espera"}
         self.reproducciones = 0
-        self.medio_punto = tk.BooleanVar(value=False)
+        self.puntaje_sel = {"correctas": None, "menor": 0}
         self.escenario = {}
         self.fatiga = tk.StringVar(value="")
         self.comodidad = tk.StringVar(value="")
@@ -1033,7 +1036,7 @@ class PsychoacousticPilot(tk.Tk):
             self._fila("evento", tarea="A", campo="mssn", valor="fin")
         elif tipo == "oracion":
             self.reproducciones = 0
-            self.medio_punto.set(False)
+            self.puntaje_sel = {"correctas": None, "menor": 0}
             indice = self.indice
             self.after(1000, lambda: self._reproducir_oracion(indice))
         elif tipo == "anclaje":
@@ -1184,17 +1187,53 @@ class PsychoacousticPilot(tk.Tk):
         else:
             tk.Label(panel, text=rotulo, bg=PANEL, fg=TEXTO, font=self._font(15, "bold")).pack(pady=(4, 0))
         habilitado = self.reproducciones > 0
-        tk.Checkbutton(panel, text=TEXTOS["medio_punto"], variable=self.medio_punto, bg=PANEL, fg=TEXTO,
-                       activebackground=PANEL, selectcolor=SUPERFICIE, font=self._font(12, "bold"),
-                       state="normal" if habilitado else "disabled").pack(pady=(6, 2))
-        tk.Label(panel, text=TEXTOS["puntaje_ayuda"], bg=PANEL, fg=MUTED, font=self._font(9)).pack(pady=(0, 4))
-        fila = tk.Frame(panel, bg=PANEL)
-        fila.pack()
-        for aciertos in range(PALABRAS_CLAVE + 1):
-            tk.Button(fila, text=str(aciertos), width=5, height=2, font=self._font(20, "bold"),
-                      bg=SUPERFICIE if habilitado else "#d9dddc", fg=ACENTO_OSCURO, activebackground=ACENTO_CLARO,
-                      relief="solid", bd=1, state="normal" if habilitado else "disabled",
-                      command=lambda n=aciertos: self._puntuar(paso, n)).pack(side="left", padx=6)
+        sel = self.puntaje_sel
+        correctas = sel["correctas"]
+        grilla = tk.Frame(panel, bg=PANEL)
+        grilla.pack(pady=(8, 2))
+        filas = (("correctas", TEXTOS["puntaje_correctas"], lambda n: habilitado),
+                 ("menor", TEXTOS["puntaje_menor"],
+                  lambda n: habilitado and correctas is not None and n <= PALABRAS_CLAVE - correctas))
+        for r, (campo, rotulo, permitido) in enumerate(filas):
+            tk.Label(grilla, text=rotulo, bg=PANEL, fg=TEXTO, font=self._font(12, "bold"), justify="right",
+                     anchor="e").grid(row=r, column=0, sticky="e", padx=(0, 12), pady=4)
+            for n in range(PALABRAS_CLAVE + 1):
+                elegido = sel[campo] == n and (campo == "correctas" or correctas is not None)
+                self._boton(grilla, str(n), lambda c=campo, v=n: self._elegir_puntaje(c, v),
+                            bg=ACENTO if elegido else SUPERFICIE, fg="white" if elegido else ACENTO_OSCURO,
+                            habilitado=permitido(n), font=self._font(17, "bold"), width=3,
+                            pady=max(2, int(4 * self.scale_factor))).grid(row=r, column=n + 1, padx=4, pady=4)
+        resultado = tk.Frame(panel, bg=PANEL)
+        resultado.pack(pady=(4, 2))
+        if correctas is None:
+            tk.Label(resultado, text=TEXTOS["puntaje_pendiente"], bg=PANEL, fg=MUTED,
+                     font=self._font(14, "bold")).pack(side="left", padx=(0, 20))
+        else:
+            tk.Label(resultado, text=TEXTOS["puntaje_oracion"].format(puntaje=formato_puntaje(self._puntaje())),
+                     bg=PANEL, fg=ACENTO_OSCURO, font=self._font(28, "bold")).pack(side="left", padx=(0, 24))
+        ttk.Button(resultado, text=TEXTOS["puntaje_confirmar"], style="Primary.TButton",
+                   state="normal" if habilitado and correctas is not None else "disabled",
+                   command=lambda: self._puntuar(paso)).pack(side="left")
+
+    def _boton(self, padre, texto, comando, bg, fg, habilitado=True, font=None, **opciones):
+        """Botón de color hecho con un Label (en macOS, tk.Button ignora el color de fondo)."""
+        boton = tk.Label(padre, text=texto, bg=bg if habilitado else "#d9dddc", fg=fg if habilitado else "#9aa19f",
+                         font=font, relief="solid", bd=1, cursor="hand2" if habilitado else "arrow", **opciones)
+        if habilitado:
+            boton.bind("<ButtonRelease-1>", lambda _e: comando())
+        return boton
+
+    def _elegir_puntaje(self, campo, valor):
+        sel = self.puntaje_sel
+        sel[campo] = valor
+        if campo == "correctas":
+            sel["menor"] = min(sel["menor"], PALABRAS_CLAVE - valor)
+        self.show_step()
+
+    def _puntaje(self):
+        """Puntaje de la oración = correctas + 0,5 × con error menor (máximo 5)."""
+        sel = self.puntaje_sel
+        return min(PALABRAS_CLAVE, sel["correctas"] + 0.5 * sel["menor"])
 
     def _reproducir_oracion(self, indice):
         """Reproduce una sola vez la oración de la pantalla 'indice', si todavía es la actual."""
@@ -1211,14 +1250,14 @@ class PsychoacousticPilot(tk.Tk):
         self.reproducciones = 1
         self.show_step()
 
-    def _puntuar(self, paso, aciertos):
-        """Puntaje = palabras clave acertadas + ½ si se marcó el error menor (máximo 5)."""
-        medio = bool(self.medio_punto.get())
-        valor = min(PALABRAS_CLAVE, aciertos + (0.5 if medio else 0))
+    def _puntuar(self, paso):
+        sel = self.puntaje_sel
+        if sel["correctas"] is None:
+            return
         self._fila("ensayo", tarea="A", anc=self.anc_actual, anc_cambio=self.anc_modo, lista=paso["lista"],
                    oracion=paso["oracion"], practica="si" if paso["practica"] else "no",
-                   puntaje=formato_puntaje(valor), reproducciones=self.reproducciones,
-                   campo="aciertos+medio", valor="{}+{}".format(aciertos, "½" if medio else "0"))
+                   correctas=sel["correctas"], error_menor=sel["menor"],
+                   puntaje=formato_puntaje(self._puntaje()), reproducciones=self.reproducciones)
         self.indice += 1
         self.show_step()
 
