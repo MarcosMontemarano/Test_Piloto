@@ -62,8 +62,7 @@ SECCIONES = ("bienvenida", "instrucciones", "demo_anc", "tarea_A", "bloque_1", "
 # Textos que ve el participante: textos_participante.json (junto al programa), que se lee al
 # iniciar y se suma a TEXTOS. Acá quedan solo los del experimentador.
 TEXTOS = {
-    "panel_experimentador": "Panel del experimentador (no para el oyente)",
-    "puntaje_ayuda": "Palabras clave correctas (exactas, con número y género)",
+    "oracion_experimentador": "Experimentador · Lista {lista} – Oración {oracion}{practica}",
     "anc_aviso_manual": "Experimentador: OpenSCQ30 falló ({error}). Cambiá el ANC a {estado} a mano y confirmá.",
     "anc_hecho_manual": "Listo, ANC en {estado}",
 }
@@ -80,7 +79,6 @@ COLORES_CCR = (
     ("#7CB342", "#1A1A1A"),   # Bastante más fácil: verde intermedio
     ("#2E7D32", "#FFFFFF"),   # Mucho más fácil: verde
 )
-PALABRAS_CLAVE = 5
 # Tamaño de los textos de explicación para el participante (más grande que el resto de la interfaz).
 TAM_EXPLICACION = 21
 FUENTES_PREFERIDAS =("Calibri", "Segoe UI", "Arial", "Helvetica", "DejaVu Sans")
@@ -232,6 +230,7 @@ class PsychoacousticPilot(tk.Tk):
         self.mssn_iniciado = False
         self.demo = {"estado": "espera"}
         self.reproducciones = 0
+        self.oracion_terminada = False
         self.escenario = {}
         self.fatiga = tk.StringVar(value="")
         self.comodidad = tk.StringVar(value="")
@@ -664,7 +663,6 @@ class PsychoacousticPilot(tk.Tk):
         self.fragmentos = [ses.nombre_fragmento(r) for r in self.rutas["musica"]]
         self.ruta_fragmento = dict(zip(self.fragmentos, self.rutas["musica"]))
         self.cb = ses.contrabalanceo(participante, self.fragmentos)
-        self.oraciones = ses.cargar_oraciones(self.base)
         self.calibracion = ses.cargar_calibracion(self.base)
         try:
             auriculares, ruido = self.salidas["auriculares"], self.salidas["ruido"]
@@ -927,7 +925,17 @@ class PsychoacousticPilot(tk.Tk):
             listo = bool(self.fatiga.get() and self.comodidad.get())
             ttk.Button(self.footer, text=TEXTOS["finalizar"], style="Primary.TButton", command=self.finalizar,
                        state="normal" if listo else "disabled").pack(side="right")
-        elif tipo not in ("oracion", "escenario", "transicion"):
+        elif tipo == "oracion":
+            ttk.Button(self.footer, text=TEXTOS["continuar"], style="Primary.TButton",
+                       command=self._continuar_oracion,
+                       state="normal" if self.oracion_terminada else "disabled").pack(side="right")
+            paso = self.pasos[self.indice]
+            # Zona del experimentador (letra chica): qué lista y oración anotar en la planilla.
+            tk.Label(self.footer, text=TEXTOS["oracion_experimentador"].format(
+                         lista=paso["lista"], oracion=paso["oracion"],
+                         practica=" (familiarización)" if paso["practica"] else ""),
+                     bg=FONDO, fg=MUTED, font=self._font(8)).pack(side="left")
+        elif tipo not in ("escenario", "transicion"):
             texto = TEXTOS["comenzar"] if tipo == "bienvenida" else TEXTOS["continuar"]
             ttk.Button(self.footer, text=texto, style="Primary.TButton", command=self.next_step,
                        state="normal" if self._puede_avanzar() else "disabled").pack(side="right")
@@ -1079,6 +1087,7 @@ class PsychoacousticPilot(tk.Tk):
             self._fila("evento", tarea="A", campo="mssn", valor="fin")
         elif tipo == "oracion":
             self.reproducciones = 0
+            self.oracion_terminada = False
             indice = self.indice
             self.after(1000, lambda: self._reproducir_oracion(indice))
         elif tipo == "anclaje":
@@ -1195,46 +1204,13 @@ class PsychoacousticPilot(tk.Tk):
             return
         self.after(200, lambda: self._avanzar_transicion(indice))
 
-    def _pantalla_oracion(self, body, paso):
-        titulo = TEXTOS["tarea_a_titulo"] + (" · " + TEXTOS["practica"] if paso["practica"] else "")
-        self._heading(body, titulo, 22)
-        tk.Label(body, text=TEXTOS["oracion"].format(numero=paso["oracion"], total=ses.ORACIONES_POR_LISTA),
-                 bg=SUPERFICIE, fg=TEXTO, font=self._font(19, "bold")).pack(pady=(4, 6))
-        tk.Label(body, text=TEXTOS["escucha_oracion"], bg=SUPERFICIE, fg=MUTED, font=self._font(14)).pack(
-            pady=(0, 10))
-
-        panel = tk.Frame(body, bg=PANEL, highlightbackground=BORDES, highlightthickness=1, padx=14, pady=8)
-        panel.pack(fill="x", padx=20, pady=(4, 0))
-        tk.Label(panel, text=TEXTOS["panel_experimentador"], bg=PANEL, fg=TEXTO,
-                 font=self._font(11, "bold")).pack()
-        archivo = os.path.basename(ses.ruta_oracion(self.base, paso["lista"], paso["oracion"]))
-        datos = self.oraciones.get(archivo)
-        rotulo = "Lista {} – Oración {}".format(paso["lista"], paso["oracion"])
-        if datos:
-            texto, claves, estado = datos
-            caja = tk.Text(panel, height=2, wrap="word", bg=PANEL, fg=TEXTO, relief="flat",
-                           font=self._font(17), highlightthickness=0)
-            caja.insert("1.0", texto)
-            caja.tag_configure("clave", font=self._font(17, "bold"), foreground=ACENTO_OSCURO, underline=True)
-            caja.tag_configure("centro", justify="center")
-            caja.tag_add("centro", "1.0", "end")
-            for inicio, fin in ses.posiciones_claves(texto, claves):
-                caja.tag_add("clave", "1.0+{}c".format(inicio), "1.0+{}c".format(fin))
-            caja.configure(state="disabled")
-            caja.pack(fill="x", pady=(4, 0))
-            tk.Label(panel, text=rotulo + (" · claves provisorias" if estado == "provisorio" else ""),
-                     bg=PANEL, fg=MUTED, font=self._font(9)).pack()
-        else:
-            tk.Label(panel, text=rotulo, bg=PANEL, fg=TEXTO, font=self._font(15, "bold")).pack(pady=(4, 0))
-        habilitado = self.reproducciones > 0
-        tk.Label(panel, text=TEXTOS["puntaje_ayuda"], bg=PANEL, fg=TEXTO, font=self._font(12, "bold")).pack(
-            pady=(10, 4))
-        fila = tk.Frame(panel, bg=PANEL)
-        fila.pack(pady=(0, 6))
-        for n in range(PALABRAS_CLAVE + 1):
-            self._boton(fila, str(n), lambda v=n: self._puntuar(paso, v), bg=SUPERFICIE, fg=ACENTO_OSCURO,
-                        habilitado=habilitado, font=self._font(24, "bold"), width=4,
-                        pady=max(4, int(10 * self.scale_factor))).pack(side="left", padx=8)
+    def _pantalla_oracion(self, body, _paso):
+        """Solo "Escuchá con atención…": la oración escrita nunca aparece en pantalla y el puntaje se
+        anota en la planilla impresa. Continuar se habilita cuando termina de sonar la oración."""
+        tk.Frame(body, bg=SUPERFICIE).pack(expand=True)
+        tk.Label(body, text=TEXTOS["escucha_oracion"], bg=SUPERFICIE, fg=TEXTO,
+                 font=self._font(TAM_EXPLICACION + 6, "bold")).pack()
+        tk.Frame(body, bg=SUPERFICIE).pack(expand=True)
 
     def _boton(self, padre, texto, comando, bg, fg, habilitado=True, font=None, **opciones):
         """Botón de color hecho con un Label (en macOS, tk.Button ignora el color de fondo)."""
@@ -1257,13 +1233,26 @@ class PsychoacousticPilot(tk.Tk):
             self._detener_por_falta(str(falta))
             return
         self.reproducciones = 1
-        self.show_step()
+        self._esperar_fin_oracion(indice)
 
-    def _puntuar(self, paso, correctas):
-        """Cada palabra clave vale 1 si se repite exacta (incluidos número y género) y 0 si no."""
+    def _esperar_fin_oracion(self, indice):
+        """Cuando la oración terminó de sonar, habilita Continuar."""
+        if self.detenida or indice != self.indice:
+            return
+        if self.salidas["auriculares"].sonando("oracion"):
+            self.after(100, lambda: self._esperar_fin_oracion(indice))
+            return
+        self.oracion_terminada = True
+        self._dibujar_footer()
+
+    def _continuar_oracion(self):
+        """Registra el ensayo (el puntaje se carga después, desde la planilla) y pasa a la siguiente."""
+        paso = self.pasos[self.indice]
+        if paso["tipo"] != "oracion" or not self.oracion_terminada:
+            return
         self._fila("ensayo", tarea="A", anc=self.anc_actual, anc_cambio=self.anc_modo, lista=paso["lista"],
                    oracion=paso["oracion"], practica="si" if paso["practica"] else "no",
-                   palabras_correctas=correctas, reproducciones=self.reproducciones)
+                   reproducciones=self.reproducciones)
         self.indice += 1
         self.show_step()
 

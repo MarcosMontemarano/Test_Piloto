@@ -73,7 +73,7 @@ CLAVES_TEXTOS = {
     "instrucciones_titulo": None, "instrucciones": None, "demo_titulo": None, "demo_texto": None,
     "demo_boton": None, "demo_en_curso": None, "demo_fin": None, "demo_fin_explicacion": None,
     "preparando": None, "tarea_a_titulo": None, "tarea_a_instrucciones": None, "transicion_titulo": None,
-    "transicion_practica": None, "practica": None, "oracion": None, "escucha_oracion": None,
+    "transicion_practica": None, "escucha_oracion": None,
     "tarea_a_fin": None, "bloque_titulo": None, "bloque_texto": None, "anclaje_titulo": None,
     "anclaje_texto": None, "anclaje_texto_repeticion": None, "anclaje_musica": None, "escenario_titulo": None, "nivel_escucha": None,
     "menor_volumen": None, "mayor_volumen": None, "ok": None, "esfuerzo": None, "opciones_esfuerzo": 7,
