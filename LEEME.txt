@@ -124,6 +124,11 @@ cuadrado latino con rotacion (k + k div 6) mod 3; lista 1 con ANC OFF si (k + k 
 par; en la Tarea A va primero OFF si (k div 2 + k div 12) es par; en el primer bloque el
 primer escenario es OFF si (k div 3 + k div 12) es par y alterna en los bloques siguientes.
 Cada 12 participantes queda todo balanceado.
+Los pares musica-ambiente de cada sesion quedan en el CSV (musica_<bloque> y
+pares_musica_ambiente). Para ver la asignacion de cada participante:
+    python herramientas/tabla_contrabalanceo.py            (participantes 1 a 24; --hasta N)
+genera resultados/tabla_contrabalanceo.csv con el orden de los bloques, la musica de cada
+ambiente, el ANC del primer escenario de cada bloque y la lista de cada estado en la Tarea A.
 
 DATOS
 

@@ -748,6 +748,7 @@ class PsychoacousticPilot(tk.Tk):
         r.sesion("orden_bloques", " > ".join(cb["orden_bloques"]))
         for bloque in ses.BLOQUES:
             r.sesion("musica_" + bloque, cb["musica"][bloque])
+        r.sesion("pares_musica_ambiente", "; ".join("{}={}".format(b, cb["musica"][b]) for b in ses.BLOQUES))
             r.sesion("anc_" + bloque, " > ".join(cb["anc_bloques"][bloque]))
         r.sesion("tarea_A_orden_anc", " > ".join(cb["anc_tarea_a"]))
         r.sesion("tarea_A_lista_anc_OFF", cb["listas"]["OFF"])
