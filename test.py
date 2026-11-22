@@ -678,7 +678,13 @@ class PsychoacousticPilot(tk.Tk):
             return
 
         nombre_inicio, self.seccion_inicio = EMPEZAR_DESDE[max(0, self.empezar_desde.current())]
-        self.registro = ses.Registro(self.base, participante, prueba=self.seccion_inicio != 0)
+        try:
+            self.codigo = ses.generar_codigo(self.base)
+            self.registro = ses.Registro(self.base, participante, self.codigo, prueba=self.seccion_inicio != 0)
+        except (OSError, RuntimeError) as error:
+            self.error_config.configure(text="No se pudo crear el CSV de la sesión: {}".format(error), fg=ALERTA)
+            return
+        self.registro.sesion("codigo_sesion", self.codigo)
         if self.seccion_inicio != 0:
             self.registro.sesion("modo_prueba", "empieza desde: " + nombre_inicio)
         control = self.control_cfg if getattr(self, "anc_conectado", False) else None
@@ -1110,6 +1116,13 @@ class PsychoacousticPilot(tk.Tk):
         self._paragraph(body, TEXTOS["bienvenida_subtitulo"], 17)
         tk.Label(body, text=TEXTOS["duracion"].format(minutos=DURACION_MINUTOS), bg=SUPERFICIE, fg=MUTED,
                  font=self._font(13)).pack(pady=(4, 20))
+        self._codigo_sesion(body)
+
+    def _codigo_sesion(self, body):
+        """"Tu código de sesión es: ###" en grande (el participante se lo dice al experimentador)."""
+        tk.Label(body, text=TEXTOS["codigo_sesion"].format(codigo=self.codigo), bg=ACENTO_CLARO,
+                 fg=ACENTO_OSCURO, font=self._font(30, "bold"), padx=int(24 * self.scale_factor),
+                 pady=int(10 * self.scale_factor)).pack(pady=(6, 10))
 
     def _pantalla_instrucciones(self, body, _paso):
         self._heading(body, TEXTOS["instrucciones_titulo"])
@@ -1356,6 +1369,7 @@ class PsychoacousticPilot(tk.Tk):
                 ttk.Radiobutton(fila, text=opcion, value=opcion, variable=var,
                                 command=self._dibujar_footer).pack(side="left", padx=10)
         self._explicacion(body, TEXTOS["cierre_texto"])
+        self._codigo_sesion(body)
 
     # ------------------------------------------------------------ audio: cortes de dispositivo
 

@@ -47,7 +47,8 @@ PLANILLA IMPRIMIBLE DE LA TAREA A
     python herramientas/hoja_experimentador.py
 
 genera herramientas/salidas/planilla_oraciones.pdf: una sola planilla A4, igual para todos los
-participantes (se imprime una vez y se fotocopia). Tiene "Participante N.o" y "Fecha", las listas
+participantes (se imprime una vez y se fotocopia). Tiene "Participante N.o", "Fecha" y
+"Codigo de sesion" en el encabezado, las listas
 1, 2 y 3 (familiarizacion) en el orden original, cada oracion con las 5 palabras clave en negrita
 y un recuadro "__ / 5". No dice el estado del ANC ni el orden de la sesion. Sale de
 audio/quicksin/oraciones.csv; si alguna oracion esta "provisorio", lleva la marca PROVISORIO al
@@ -126,10 +127,16 @@ Cada 12 participantes queda todo balanceado.
 
 DATOS
 
-Cada sesion escribe datos/participante_NNN_FECHA-HORA.csv junto al ejecutable, fila por fila
-(no se pierde lo registrado si el programa se cierra). Tipos de fila: sesion (dispositivos,
-ganancias y asignaciones), ensayo (Tarea A: lista, oracion y palabras_correctas de 0 a 5: cada palabra clave vale 1
-si se repite exacta, incluidos numero y genero, y 0 si no; Tareas B y C: paso
+Al tocar "Iniciar sesion" se genera un codigo de sesion aleatorio de 3 digitos (100 a 999) que
+no este en ningun CSV de resultados/. El participante lo ve en grande en la bienvenida y en el
+cierre ("Tu codigo de sesion es: ###"), te lo dice y lo anotas en la planilla impresa: asi se
+vincula la planilla con el CSV.
+
+Cada sesion escribe resultados/sesion_###_P<participante>.csv junto al ejecutable, fila por
+fila (no se pierde lo registrado si el programa se cierra). Todas las filas llevan la columna
+codigo_sesion. (Las sesiones viejas, de antes del codigo, quedaron en datos/.) Tipos de fila:
+sesion (dispositivos, ganancias y asignaciones), ensayo (Tarea A: lista y oracion, sin puntaje:
+el puntaje se anota en la planilla y se carga despues; Tareas B y C: paso
 inicial y final del slider, ganancia en dB, CCR de -3 a +3), anclaje, anc (cada cambio
 confirmado), evento (inicio y fin de cada parte) y cierre.
 
@@ -165,7 +172,7 @@ MODO PRUEBA (solo experimentador)
 - En la configuracion, "Empezar desde" (Instrucciones, Tarea A, Bloque 1, 2 o 3, Cierre) arranca
   la sesion en esa parte, para probar partes sueltas.
 - Ctrl+Shift+S pasa a la pantalla siguiente sin registrar respuesta.
-- Una sesion que no empieza desde el inicio se guarda como datos/participante_NNN_..._PRUEBA.csv
+- Una sesion que no empieza desde el inicio se guarda como resultados/sesion_###_P<n>_PRUEBA.csv
   con prueba = si en todas las filas. Si en una sesion normal se usa Ctrl+Shift+S, desde ese
   momento las filas quedan con prueba = si y cada salto se registra.
 

@@ -68,5 +68,6 @@
     "Intermedio"
   ],
   "cierre_texto": "La sesión terminó. **¡Muchas gracias!**",
-  "finalizar": "Finalizar"
+  "finalizar": "Finalizar",
+  "codigo_sesion": "Tu código de sesión es: {codigo}"
 }

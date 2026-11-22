@@ -4,6 +4,7 @@ import csv
 import glob
 import json
 import os
+import random
 import re
 import sys
 from datetime import datetime
@@ -78,9 +79,9 @@ CLAVES_TEXTOS = {
     "anclaje_texto": None, "anclaje_texto_repeticion": None, "anclaje_musica": None, "escenario_titulo": None, "nivel_escucha": None,
     "menor_volumen": None, "mayor_volumen": None, "ok": None, "esfuerzo": None, "opciones_esfuerzo": 7,
     "cierre_titulo": None, "fatiga": None, "opciones_fatiga": 3, "comodidad": None,
-    "opciones_comodidad": 3, "cierre_texto": None, "finalizar": None,
+    "opciones_comodidad": 3, "cierre_texto": None, "finalizar": None, "codigo_sesion": None,
 }
-VALORES_PRUEBA = {"minutos": 25, "segundos": 21, "numero": 1, "total": 6, "actual": 1}
+VALORES_PRUEBA = {"minutos": 25, "segundos": 21, "numero": 1, "total": 6, "actual": 1, "codigo": "123"}
 
 
 def cargar_textos(base):
@@ -256,29 +257,58 @@ def cargar_calibracion(base):
 COLUMNAS = [
     "momento", "tipo", "tarea", "bloque", "posicion_bloque", "musica", "anc", "anc_cambio",
     "lista", "oracion", "practica", "palabras_correctas", "reproducciones", "paso_inicial", "paso_final",
-    "ganancia_db", "nivel_dba", "ccr", "ccr_texto", "campo", "valor", "prueba",
+    "ganancia_db", "nivel_dba", "ccr", "ccr_texto", "campo", "valor", "prueba", "codigo_sesion",
 ]
+
+CARPETA_RESULTADOS = "resultados"
+PATRON_SESION = re.compile(r"^sesion_(\d{3})_P(\d+)(_PRUEBA)?\.csv$", re.IGNORECASE)
+
+
+def sesiones_guardadas(base):
+    """{código: ruta} de los CSV de resultados/ (sesion_###_P<n>[_PRUEBA].csv)."""
+    carpeta = os.path.join(base, CARPETA_RESULTADOS)
+    sesiones = {}
+    try:
+        nombres = sorted(os.listdir(carpeta))
+    except OSError:
+        return sesiones
+    for nombre in nombres:
+        m = PATRON_SESION.match(nombre)
+        if m:
+            sesiones[m.group(1)] = os.path.join(carpeta, nombre)
+    return sesiones
+
+
+def generar_codigo(base, azar=None):
+    """Código de sesión de 3 dígitos (100 a 999) que no esté en ningún CSV de resultados/."""
+    usados = set(sesiones_guardadas(base))
+    libres = [str(c) for c in range(100, 1000) if str(c) not in usados]
+    if not libres:
+        raise RuntimeError("Ya se usaron los 900 códigos de sesión de resultados/.")
+    return (azar or random.SystemRandom()).choice(libres)
 
 
 class Registro:
-    """CSV por participante en datos/. Se escribe y se vacía fila por fila."""
+    """CSV de la sesión en resultados/sesion_###_P<n>.csv. Se escribe y se vacía fila por fila."""
 
-    def __init__(self, base, participante, prueba=False):
-        carpeta = os.path.join(base, "datos")
+    def __init__(self, base, participante, codigo, prueba=False):
+        carpeta = os.path.join(base, CARPETA_RESULTADOS)
         os.makedirs(carpeta, exist_ok=True)
         self.inicio = datetime.now()
+        self.codigo = codigo
         # prueba: todo lo que se registra va con prueba = "si" (y el archivo lleva _PRUEBA).
         self.prueba = prueba
-        self.ruta = os.path.join(carpeta, "participante_{:03d}_{}{}.csv".format(
-            participante, self.inicio.strftime("%Y%m%d-%H%M%S"), "_PRUEBA" if prueba else ""))
-        self.archivo = open(self.ruta, "w", newline="", encoding="utf-8-sig")
+        self.ruta = os.path.join(carpeta, "sesion_{}_P{}{}.csv".format(codigo, participante,
+                                                                      "_PRUEBA" if prueba else ""))
+        # "x": nunca pisa un archivo existente (el código ya se eligió entre los no usados).
+        self.archivo = open(self.ruta, "x", newline="", encoding="utf-8-sig")
         self.escritor = csv.DictWriter(self.archivo, fieldnames=COLUMNAS)
         self.escritor.writeheader()
 
     def fila(self, tipo, **campos):
         campos = {k: v for k, v in campos.items() if v is not None}
         campos.update(momento=datetime.now().isoformat(timespec="milliseconds"), tipo=tipo,
-                      prueba="si" if self.prueba else "no")
+                      prueba="si" if self.prueba else "no", codigo_sesion=self.codigo)
         self.escritor.writerow(campos)
         self.archivo.flush()
 

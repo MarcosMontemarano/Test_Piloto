@@ -1,7 +1,8 @@
 """Planilla genérica imprimible para puntuar la Tarea A (una sola, igual para todos los participantes).
 
 Genera planilla_oraciones.pdf (A4) con:
-- encabezado "Participante N.º ____" y "Fecha ____";
+- encabezado "Participante N.º ____", "Fecha ____" y "Código de sesión: ____" (el código que el
+  programa muestra al participante al empezar y al terminar; vincula la planilla con el CSV);
 - las listas 1, 2 y 3 ("Lista 3 – familiarización"), cada oración en su orden original, con su
   número, el texto completo con las 5 palabras clave en negrita y un recuadro "__ / 5";
 - si alguna oración tiene estado "provisorio" en oraciones.csv, una marca chica PROVISORIO al pie.
@@ -124,11 +125,23 @@ def alto_bloque(bloque):
     return max(RECUADRO_ALTO, lineas * TAM_TEXTO * INTERLINEA) + SEPARACION_ORACIONES
 
 
+# Campos del encabezado y la parte de la línea en blanco que le toca a cada uno.
+CAMPOS_ENCABEZADO = (("Participante N.º", 2), ("Fecha", 3), ("Código de sesión:", 2))
+SEPARACION_CAMPOS = 6 * MM
+
+
 def encabezado(ax, y):
-    for x, rotulo, largo in ((MARGEN, "Participante N.º", 32 * MM), (ANCHO / 2 + 10 * MM, "Fecha", 45 * MM)):
-        ax.text(x, y, rotulo, fontsize=TAM_TITULO, family=FUENTE, weight="bold", va="baseline")
-        x_linea = x + ancho(rotulo + " ", True, TAM_TITULO) + 1 * MM
-        ax.plot([x_linea, x_linea + largo], [y - 1.2 * MM] * 2, color="black", lw=1)
+    """Participante N.º ____  Fecha ____  Código de sesión: ____, en un renglón."""
+    tam = TAM_TITULO - 1
+    rotulos = [ancho(r + " ", True, tam) for r, _ in CAMPOS_ENCABEZADO]
+    libre = ANCHO - 2 * MARGEN - sum(rotulos) - SEPARACION_CAMPOS * (len(CAMPOS_ENCABEZADO) - 1)
+    total_partes = sum(p for _, p in CAMPOS_ENCABEZADO)
+    x = MARGEN
+    for (rotulo, partes), w in zip(CAMPOS_ENCABEZADO, rotulos):
+        ax.text(x, y, rotulo, fontsize=tam, family=FUENTE, weight="bold", va="baseline")
+        largo = libre * partes / total_partes
+        ax.plot([x + w, x + w + largo], [y - 1.2 * MM] * 2, color="black", lw=1)
+        x += w + largo + SEPARACION_CAMPOS
     return y - 11 * MM
 
 

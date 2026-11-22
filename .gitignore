@@ -10,4 +10,5 @@ herramientas/salidas/
 # Configuración y datos de las sesiones (quedan junto al ejecutable)
 config.json
 datos/
+resultados/
 calibracion_niveles.csv
