@@ -72,6 +72,17 @@ TEXTOS = {
 }
 # Valores internos del CCR, en el orden de "opciones_esfuerzo" del JSON.
 VALORES_CCR = (-3, -2, -1, 0, 1, 2, 3)
+# Colores de semáforo del CCR (fondo, letra), del rojo (más esfuerzo) al verde (más fácil).
+# Contraste WCAG de la letra sobre el fondo: 5,6 / 5,6 / 8,8 / 12,5 / 12,2 / 6,9 / 5,1 (mínimo AA: 4,5).
+COLORES_CCR = (
+    ("#C62828", "#FFFFFF"),   # Mucho más esfuerzo: rojo
+    ("#EF6C00", "#1A1A1A"),   # Bastante más esfuerzo: naranja
+    ("#F9A825", "#1A1A1A"),   # Un poco más esfuerzo: amarillo anaranjado
+    ("#FDD835", "#1A1A1A"),   # Igual esfuerzo: amarillo
+    ("#C5E1A5", "#1A1A1A"),   # Un poco más fácil: verde claro
+    ("#7CB342", "#1A1A1A"),   # Bastante más fácil: verde intermedio
+    ("#2E7D32", "#FFFFFF"),   # Mucho más fácil: verde
+)
 PALABRAS_CLAVE = 5
 # Tamaño de los textos de explicación para el participante (más grande que el resto de la interfaz).
 TAM_EXPLICACION = 21
@@ -1342,12 +1353,10 @@ class PsychoacousticPilot(tk.Tk):
         self._explicacion(ccr, TEXTOS["esfuerzo"], bg=PANEL)
         fila = tk.Frame(ccr, bg=PANEL)
         fila.pack(fill="x")
-        for texto, valor in zip(TEXTOS["opciones_esfuerzo"], VALORES_CCR):
-            tk.Button(fila, text=texto, wraplength=int(125 * self.scale_factor), width=12, height=4,
-                      font=self._font(12.6, "bold"), relief="solid", bd=1, bg=SUPERFICIE, fg=TEXTO,
-                      activebackground=ACENTO_CLARO,
-                      command=lambda t=texto, v=valor: self._elegir_ccr(paso, t, v)).pack(
-                          side="left", fill="both", expand=True, padx=2)
+        for texto, valor, (fondo, letra) in zip(TEXTOS["opciones_esfuerzo"], VALORES_CCR, COLORES_CCR):
+            self._boton(fila, texto, lambda t=texto, v=valor: self._elegir_ccr(paso, t, v), bg=fondo, fg=letra,
+                        font=self._font(12.6, "bold"), wraplength=int(125 * self.scale_factor), width=12,
+                        height=4).pack(side="left", fill="both", expand=True, padx=2)
 
     def _mover_slider(self, paso):
         if paso == self.escenario["paso"]:
