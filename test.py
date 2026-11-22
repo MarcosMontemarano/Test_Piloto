@@ -85,7 +85,6 @@ ACENTO = "#087e78"
 ACENTO_OSCURO = "#06645f"
 ACENTO_CLARO = "#dcefeb"
 BORDES = "#dce5e2"
-GRIS = "#e5e8e7"
 PANEL = "#edf3f1"
 ALERTA = "#b3261e"
 ALERTA_FONDO = "#fde8e6"
@@ -1310,7 +1309,7 @@ class PsychoacousticPilot(tk.Tk):
         estado = self.escenario
         if estado["confirmado"]:
             # Después de OK desaparece todo lo del volumen y queda solo el CCR.
-            self._ccr(body, paso, habilitado=True)
+            self._ccr(body, paso)
             return
         self._heading(body, TEXTOS["escenario_titulo"], 24)
         self._explicacion(body, TEXTOS["nivel_escucha"])
@@ -1335,25 +1334,18 @@ class PsychoacousticPilot(tk.Tk):
         self._dibujar_triangulo(estado["paso"])
 
         ttk.Button(body, text=TEXTOS["ok"], style="Primary.TButton", command=self._confirmar_nivel).pack(pady=(8, 6))
-        self._ccr(body, paso, habilitado=False)
 
-    def _ccr(self, body, paso, habilitado):
-        """Escala de esfuerzo: en gris (bloqueada) antes de OK; después de OK, sola y más grande."""
-        fondo = PANEL if habilitado else GRIS
-        escala = 1.4 if habilitado else 1.0
-        ccr = tk.Frame(body, bg=fondo, highlightbackground=BORDES, highlightthickness=1, padx=8, pady=6)
-        ccr.pack(fill="x", padx=4, expand=habilitado)
-        tk.Label(ccr, text=TEXTOS["esfuerzo"], bg=fondo, fg=TEXTO if habilitado else "#818987",
-                 font=self._font(12 * escala, "bold"), wraplength=int(900 * self.scale_factor)).pack(
-                     pady=(10 if habilitado else 0, 8 if habilitado else 4))
-        fila = tk.Frame(ccr, bg=fondo)
+    def _ccr(self, body, paso):
+        """Escala de esfuerzo: no existe antes de OK; después de OK aparece sola en la pantalla."""
+        ccr = tk.Frame(body, bg=PANEL, highlightbackground=BORDES, highlightthickness=1, padx=8, pady=6)
+        ccr.pack(fill="x", padx=4, expand=True)
+        self._explicacion(ccr, TEXTOS["esfuerzo"], bg=PANEL)
+        fila = tk.Frame(ccr, bg=PANEL)
         fila.pack(fill="x")
         for texto, valor in zip(TEXTOS["opciones_esfuerzo"], VALORES_CCR):
-            tk.Button(fila, text=texto, wraplength=int((125 if habilitado else 106) * self.scale_factor), width=12,
-                      height=4 if habilitado else 3, font=self._font(9 * escala, "bold"), relief="solid", bd=1,
-                      bg=SUPERFICIE if habilitado else "#d9dddc", fg=TEXTO if habilitado else "#8a918f",
-                      disabledforeground="#8a918f", activebackground=ACENTO_CLARO,
-                      state="normal" if habilitado else "disabled",
+            tk.Button(fila, text=texto, wraplength=int(125 * self.scale_factor), width=12, height=4,
+                      font=self._font(12.6, "bold"), relief="solid", bd=1, bg=SUPERFICIE, fg=TEXTO,
+                      activebackground=ACENTO_CLARO,
                       command=lambda t=texto, v=valor: self._elegir_ccr(paso, t, v)).pack(
                           side="left", fill="both", expand=True, padx=2)
 
