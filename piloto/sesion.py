@@ -238,7 +238,7 @@ def cargar_calibracion(base):
 
 COLUMNAS = [
     "momento", "tipo", "tarea", "bloque", "posicion_bloque", "musica", "anc", "anc_cambio",
-    "lista", "oracion", "practica", "correctas", "error_menor", "puntaje", "reproducciones", "paso_inicial", "paso_final",
+    "lista", "oracion", "practica", "palabras_correctas", "reproducciones", "paso_inicial", "paso_final",
     "ganancia_db", "nivel_dba", "ccr", "ccr_texto", "campo", "valor", "prueba",
 ]
 
