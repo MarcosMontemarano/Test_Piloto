@@ -10,6 +10,8 @@ import tkinter as tk
 import tkinter.font as tkfont
 from tkinter import ttk
 
+import numpy as np
+
 from piloto import anc_control, audio, volumen
 from piloto import sesion as ses
 
@@ -213,6 +215,8 @@ class PsychoacousticPilot(tk.Tk):
         self.resultados = queue.Queue()
         threading.Thread(target=self._trabajador, daemon=True).start()
         self.ambiente_actual = None
+        self.ambiente_info = None
+        self.ambiente_label = None
         self.mssn_iniciado = False
         self.demo = {"estado": "espera"}
         self.reproducciones = 0
@@ -360,6 +364,10 @@ class PsychoacousticPilot(tk.Tk):
                    command=lambda: self._refrescar_dispositivos(True)).pack(side="left")
         tk.Label(opciones, text="Dispositivos de {} (una entrada por dispositivo)".format(audio.api_preferida() or "audio"),
                  bg=SUPERFICIE, fg=MUTED, font=self._font(9)).pack(side="left", padx=12)
+        for bloque in ("avion", "trafico"):
+            ttk.Button(opciones, text="Escuchar {} (4 s)".format(ses.NOMBRE_BLOQUE[bloque].lower()),
+                       style="Small.TButton", command=lambda b=bloque: self._probar_ambiente(b)).pack(
+                           side="right", padx=(6, 0))
         self.aviso_dispositivos = tk.Label(body, bg=SUPERFICIE, fg=ALERTA, font=self._font(11, "bold"))
         self.aviso_dispositivos.pack(pady=(0, 4))
 
@@ -545,6 +553,26 @@ class PsychoacousticPilot(tk.Tk):
             return
         salida.reproducir_datos(audio.ruido_rosa(salida.fs, 1.0, -20.0), clave="prueba", fundido=False)
 
+    def _probar_ambiente(self, bloque):
+        """4 s del ruido del bloque por los monitores, con la ganancia escrita en la configuración."""
+        salida, ruta = self.salidas["ruido"], self.rutas.get(bloque)
+        if salida.stream is None:
+            self.estado_zona["ruido"].configure(text="Primero elegí un dispositivo que abra bien.", fg=ALERTA)
+            return
+        if not ruta or not os.path.isfile(ruta):
+            self.estado_zona["ruido"].configure(text="No está el archivo {}".format(ruta), fg=ALERTA)
+            return
+        try:
+            ganancia = float(self.vars_ganancia[GANANCIA_AMBIENTE[bloque]].get().replace(",", "."))
+        except ValueError:
+            ganancia = 0.0
+        datos = salida.cargar(ruta, circular=True)[:int(4 * salida.fs)].copy()
+        fundido = int(0.05 * salida.fs)
+        datos[-fundido:] *= np.linspace(1, 0, fundido, dtype=np.float32)[:, None]
+        salida.reproducir_datos(datos, ganancia, clave="prueba")
+        self.estado_zona["ruido"].configure(text="Sonando {} por {} con {:g} dB…".format(
+            os.path.basename(ruta), salida.dispositivo["nombre"], ganancia), fg=ACENTO_OSCURO)
+
     def _iniciar_sesion(self):
         errores = []
         try:
@@ -635,6 +663,7 @@ class PsychoacousticPilot(tk.Tk):
         self.pasos = self._armar_pasos()
         self.indice = next(i for i, p in enumerate(self.pasos) if p["seccion"] == self.seccion_inicio)
         self.show_step()
+        self._tic_ambiente()
 
     def _saltar(self, _evento=None):
         """Ctrl+Shift+S: pasa a la pantalla siguiente sin registrar respuesta (modo prueba)."""
@@ -856,6 +885,7 @@ class PsychoacousticPilot(tk.Tk):
             texto = TEXTOS["comenzar"] if tipo == "bienvenida" else TEXTOS["continuar"]
             ttk.Button(self.footer, text=texto, style="Primary.TButton", command=self.next_step,
                        state="normal" if self._puede_avanzar() else "disabled").pack(side="right")
+        self._dibujar_ambiente()
         self._dibujar_aviso_anc()
 
     def _entrar_seccion(self, seccion):
@@ -893,17 +923,67 @@ class PsychoacousticPilot(tk.Tk):
             return
         ruido = self.salidas["ruido"]
         ruido.detener("ambiente")
+        d = ruido.dispositivo
         if bloque in GANANCIA_AMBIENTE:
             ruta = self.rutas[bloque]
-            self._reproducir("ruido", ruta, self.cfg[GANANCIA_AMBIENTE[bloque]], loop=True, clave="ambiente")
-            d = ruido.dispositivo
+            ganancia = self.cfg[GANANCIA_AMBIENTE[bloque]]
+            self._reproducir("ruido", ruta, ganancia, loop=True, clave="ambiente")
+            self.ambiente_info = {"bloque": bloque, "archivo": os.path.basename(ruta), "salida": d["nombre"],
+                                  "ganancia": ganancia, "inicio": time.monotonic(), "nivel_registrado": False}
             self._fila("bloque", bloque=bloque, campo="ruido_ambiente",
                        valor="{} -> {} [{}] {} Hz, ganancia {:g} dB".format(
-                           os.path.relpath(ruta, self.base), d["nombre"], d["api"], d["fs"],
-                           self.cfg[GANANCIA_AMBIENTE[bloque]]))
+                           os.path.relpath(ruta, self.base), d["nombre"], d["api"], d["fs"], ganancia))
         elif bloque is not None:
+            self.ambiente_info = {"bloque": bloque, "archivo": None, "salida": d["nombre"]}
             self._fila("bloque", bloque=bloque, campo="ruido_ambiente", valor="ninguno")
+        else:
+            self.ambiente_info = None
         self.ambiente_actual = bloque
+
+    def _texto_ambiente(self):
+        """Texto de la zona del experimentador sobre el ruido ambiente (y si es una alerta)."""
+        info = self.ambiente_info
+        nombre = ses.NOMBRE_BLOQUE[info["bloque"]]
+        if info["archivo"] is None:
+            return "Ruido ambiente · {}: ninguno (monitores: {})".format(nombre, info["salida"]), False
+        nivel = self.salidas["ruido"].nivel_dbfs("ambiente")
+        problema = self.salidas["ruido"].problema()
+        if problema:
+            medido, alerta = "SALIDA CORTADA ({})".format(problema), True
+        elif nivel is None or nivel < -80:
+            medido, alerta = "SIN SEÑAL", time.monotonic() - info["inicio"] > 1.0
+        else:
+            medido, alerta = "nivel enviado {} dBFS".format(formato_puntaje(round(nivel, 1))), False
+        return "Ruido ambiente · {}: {} → monitores: {} · ganancia {:g} dB · {}".format(
+            nombre, info["archivo"], info["salida"], info["ganancia"], medido), alerta
+
+    def _dibujar_ambiente(self):
+        if self.ambiente_info is None:
+            self.ambiente_label = None
+            return
+        texto, alerta = self._texto_ambiente()
+        self.ambiente_label = tk.Label(self.footer, text=texto, bg=FONDO, fg=ALERTA if alerta else MUTED,
+                                       font=self._font(8, "bold" if alerta else "normal"), anchor="w",
+                                       justify="left", wraplength=int(620 * self.scale_factor))
+        self.ambiente_label.pack(side="left")
+
+    def _tic_ambiente(self):
+        """Cada 500 ms: actualiza el nivel del ruido ambiente en pantalla y, a los 2 s de empezar
+        el bloque, deja en el CSV el nivel que realmente se está mandando a los monitores."""
+        info = self.ambiente_info
+        if info is not None:
+            if self.ambiente_label is not None and self.ambiente_label.winfo_exists():
+                texto, alerta = self._texto_ambiente()
+                self.ambiente_label.configure(text=texto, fg=ALERTA if alerta else MUTED,
+                                              font=self._font(8, "bold" if alerta else "normal"))
+            if (info["archivo"] is not None and not info["nivel_registrado"]
+                    and time.monotonic() - info["inicio"] >= 2.0):
+                info["nivel_registrado"] = True
+                nivel = self.salidas["ruido"].nivel_dbfs("ambiente")
+                self._fila("bloque", bloque=info["bloque"], campo="ruido_ambiente_nivel_enviado_dbfs",
+                           valor="sin señal" if nivel is None else "{:.1f}".format(nivel))
+        if not self.sesion_terminada:
+            self.after(500, self._tic_ambiente)
 
     def show_step(self):
         paso = self.pasos[self.indice]
@@ -1264,8 +1344,9 @@ class PsychoacousticPilot(tk.Tk):
                 self._fila("evento", campo="audio_cortado", valor=" ".join(problemas))
         elif self.banner.winfo_ismapped():
             self.banner.pack_forget()
+        # (Antes también reprogramaba _revisar_resultados acá: cada 500 ms se sumaba otro bucle de
+        # 100 ms que nunca terminaba y la interfaz se iba cargando a lo largo de la sesión.)
         self.after(500, self._vigilar_audio)
-        self.after(100, self._revisar_resultados)
 
     def _reintentar_audio(self):
         for salida in self.salidas.values():

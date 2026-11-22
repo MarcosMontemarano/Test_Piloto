@@ -143,6 +143,8 @@ class Fuente:
         self.objetivo = ganancia
         self.terminando = False
         self.terminada = False
+        # Potencia media (suavizada) de lo que esta fuente entrega al stream, ya con su ganancia.
+        self.potencia = 0.0
 
     def leer(self, n):
         largo = len(self.datos)
@@ -224,6 +226,7 @@ class Salida:
                 else:
                     bloque *= np.linspace(f.g, f.objetivo, frames, dtype=np.float32)[:, None]
                     f.g = f.objetivo
+                f.potencia = 0.8 * f.potencia + 0.2 * float(np.mean(bloque * bloque))
                 mezcla += bloque
                 if not (f.terminada or (f.terminando and f.g == 0.0)):
                     vivas.append(f)
@@ -269,3 +272,15 @@ class Salida:
     def sonando(self, clave):
         with self.lock:
             return any(f.clave == clave and not f.terminando for f in self.fuentes)
+
+    def nivel_dbfs(self, clave):
+        """Nivel RMS (dBFS) que la fuente 'clave' está mandando al dispositivo; None si no suena.
+
+        Se mide en el callback, sobre el bloque ya multiplicado por la ganancia: si da un número,
+        la señal está saliendo del programa (el volumen de Windows se aplica después).
+        """
+        with self.lock:
+            potencias = [f.potencia for f in self.fuentes if f.clave == clave and not f.terminando]
+        if not potencias:
+            return None
+        return 10 * np.log10(max(potencias[0], 1e-12))
