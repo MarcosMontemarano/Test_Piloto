@@ -563,8 +563,6 @@ class PsychoacousticPilot(tk.Tk):
         if ruido is not None and auriculares is not None and ruido["nombre"] == auriculares["nombre"]:
             avisos.append("Elegiste el mismo dispositivo para el ruido ambiente y los auriculares.")
         if ruido is not None:
-            if not any(c in ruido["nombre"].lower() for c in CLAVES_MONITORES):
-                avisos.append("La salida de monitores no es la Focusrite / Scarlett ({}).".format(ruido["nombre"]))
             vol = volumen.leer_volumen(ruido["nombre"])
             if vol is not None and (vol["porcentaje"] != 100 or vol["silenciado"]):
                 avisos.append("El volumen de Windows de los monitores está en {}: ponelo al 100 %.".format(
