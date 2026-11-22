@@ -1016,7 +1016,7 @@ class PsychoacousticPilot(tk.Tk):
         texto, alerta = self._texto_ambiente()
         self.ambiente_label = tk.Label(self.footer, text=texto, bg=FONDO, fg=ALERTA if alerta else MUTED,
                                        font=self._font(8, "bold" if alerta else "normal"), anchor="w",
-                                       justify="left", wraplength=int(620 * self.scale_factor))
+                                       justify="left", wraplength=int(1000 * self.scale_factor))
         self.ambiente_label.pack(side="left")
 
     def _tic_ambiente(self):
