@@ -292,6 +292,7 @@ class PsychoacousticPilot(tk.Tk):
         style.configure("Small.TButton", font=self._font(9), padding=self._scaled_pair(8, 3))
         style.configure("Primary.TButton", font=self._font(13, "bold"), padding=self._scaled_pair(22, 12))
         style.configure("Audio.TButton", font=self._font(16, "bold"), padding=self._scaled_pair(22, 15))
+        style.configure("Grande.TRadiobutton", font=self._font(15), background=SUPERFICIE)
 
     def _build_shell(self):
         pad = max(16, int(34 * self.scale_factor))
@@ -1371,12 +1372,12 @@ class PsychoacousticPilot(tk.Tk):
         encuesta.pack(pady=(4, 8))
         for pregunta, opciones, var in ((TEXTOS["fatiga"], TEXTOS["opciones_fatiga"], self.fatiga),
                                         (TEXTOS["comodidad"], TEXTOS["opciones_comodidad"], self.comodidad)):
-            tk.Label(encuesta, text=pregunta, bg=SUPERFICIE, fg=TEXTO, font=self._font(13, "bold")).pack(pady=(6, 4))
+            self._explicacion(encuesta, pregunta, size=18)
             fila = tk.Frame(encuesta, bg=SUPERFICIE)
-            fila.pack()
+            fila.pack(pady=(0, 6))
             for opcion in opciones:
-                ttk.Radiobutton(fila, text=opcion, value=opcion, variable=var,
-                                command=self._dibujar_footer).pack(side="left", padx=10)
+                ttk.Radiobutton(fila, text=opcion, value=opcion, variable=var, style="Grande.TRadiobutton",
+                                command=self._dibujar_footer).pack(side="left", padx=14)
         self._explicacion(body, TEXTOS["cierre_texto"])
         self._codigo_sesion(body)
 
