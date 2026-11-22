@@ -991,13 +991,17 @@ class PsychoacousticPilot(tk.Tk):
         if self.detenida:
             return
         nuevo = self.indice != self.paso_dibujado
+        # Se marca antes de preparar: si al preparar se vuelve a llamar a show_step (p. ej., el ANC
+        # pasa a manual porque OpenSCQ30 no está), no se prepara dos veces ni entra en recursión.
+        self.paso_dibujado = self.indice
         try:
             if nuevo:
                 self._preparar_paso(paso)
         except ArchivoFaltante as falta:
             self._detener_por_falta(str(falta))
             return
-        self.paso_dibujado = self.indice
+        if self.indice != self.paso_dibujado:
+            return  # al preparar ya se pasó a otra pantalla y se dibujó
 
         self._refresh_stepper()
         for child in self.content.winfo_children():
